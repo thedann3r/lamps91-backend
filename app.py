@@ -20,7 +20,7 @@ jwt = JWTManager(app)
 
 @app.route("/")
 def index():
-    return "Hello doing a project for Vincent!"
+    return "Hello! I am doing a project for Vincent!"
 
 if __name__ == "__main__":
     app.run(debug = True)
