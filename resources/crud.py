@@ -238,6 +238,9 @@ class Quotation(Resource):
         if Quotations.query.filter_by(quote_number=clean_text(data.get("quote_number"))).first():
             return {"error": "Quote number already exists!"}, 400
 
+        if not data.get("items"):
+            return {"error": "A quotation must have at least one item!"}, 400
+
         quotation = Quotations(
             quote_number=clean_text(data.get("quote_number")),
             quote_date=parse_date(data.get("quote_date")) or datetime.utcnow().date(),
@@ -251,9 +254,6 @@ class Quotation(Resource):
 
         db.session.add(quotation)
         db.session.flush()
-
-        if not data.get("items"):
-            return {"error": "A quotation must have at least one item!"}, 400
 
         for item in data.get("items", []):
             product = None
@@ -290,16 +290,6 @@ class Quotation(Resource):
         db.session.commit()
 
         return quotation.to_dict(), 201
-
-
-class QuotationResource(Resource):
-    def get(self, quotation_id):
-        quotation = Quotations.query.filter_by(id=quotation_id, deleted_at=None).first()
-
-        if not quotation:
-            return {"error": "Quotation not found!"}, 404
-
-        return quotation.to_dict(), 200
     
 class QuotationResource(Resource):
     def get(self, quotation_id):
