@@ -16,6 +16,7 @@ flask-bcrypt = "*"
 requests = "*"
 pyjwt = "*"
 flask-mail = "*"
+psycopg2-binary = "*"
 
 [dev-packages]
 
