@@ -52,11 +52,15 @@ def calculate_quote_totals(quotation):
     quotation.grand_total = sub_total + quotation.vat_amount
 
 
+# ==================== CUSTOMER RESOURCES ====================
+
 class Customer(Resource):
+    @jwt_required()
     def get(self):
         customers = Customers.query.filter_by(deleted_at=None).all()
         return [customer.to_dict() for customer in customers], 200
 
+    @jwt_required()
     def post(self):
         data = request.get_json()
         required_fields = {"customer_name", "phone"}
@@ -82,6 +86,7 @@ class Customer(Resource):
 
 
 class CustomerResource(Resource):
+    @jwt_required()
     def get(self, customer_id):
         customer = Customers.query.filter_by(id=customer_id, deleted_at=None).first()
 
@@ -90,6 +95,7 @@ class CustomerResource(Resource):
 
         return customer.to_dict(), 200
 
+    @jwt_required()
     def patch(self, customer_id):
         customer = Customers.query.filter_by(id=customer_id, deleted_at=None).first()
 
@@ -115,6 +121,7 @@ class CustomerResource(Resource):
 
         return customer.to_dict(), 200
 
+    @jwt_required()
     def delete(self, customer_id):
         customer = Customers.query.filter_by(id=customer_id, deleted_at=None).first()
 
@@ -127,11 +134,15 @@ class CustomerResource(Resource):
         return {"message": "Customer deleted successfully!"}, 200
 
 
+# ==================== PRODUCT RESOURCES ====================
+
 class Product(Resource):
+    @jwt_required()
     def get(self):
         products = Products.query.filter_by(deleted_at=None).all()
         return [product.to_dict() for product in products], 200
 
+    @jwt_required()
     def post(self):
         data = request.get_json()
         required_fields = {"item_code", "product_name", "category", "selling_price"}
@@ -172,6 +183,7 @@ class Product(Resource):
 
 
 class ProductResource(Resource):
+    @jwt_required()
     def get(self, product_id):
         product = Products.query.filter_by(id=product_id, deleted_at=None).first()
 
@@ -180,6 +192,7 @@ class ProductResource(Resource):
 
         return product.to_dict(), 200
 
+    @jwt_required()
     def patch(self, product_id):
         product = Products.query.filter_by(id=product_id, deleted_at=None).first()
 
@@ -207,6 +220,7 @@ class ProductResource(Resource):
 
         return product.to_dict(), 200
 
+    @jwt_required()
     def delete(self, product_id):
         product = Products.query.filter_by(id=product_id, deleted_at=None).first()
 
@@ -219,11 +233,15 @@ class ProductResource(Resource):
         return {"message": "Product deleted successfully!"}, 200
 
 
+# ==================== QUOTATION RESOURCES ====================
+
 class Quotation(Resource):
+    @jwt_required()
     def get(self):
         quotations = Quotations.query.filter_by(deleted_at=None).all()
         return [quotation.to_dict() for quotation in quotations], 200
     
+    @jwt_required()
     def post(self):
         data = request.get_json()
         required_fields = {"quote_number", "customer_id", "items"}
@@ -241,6 +259,9 @@ class Quotation(Resource):
         if not data.get("items"):
             return {"error": "A quotation must have at least one item!"}, 400
 
+        # Get current user as prepared_by
+        current_user_id = get_jwt_identity()
+        
         quotation = Quotations(
             quote_number=clean_text(data.get("quote_number")),
             quote_date=parse_date(data.get("quote_date")) or datetime.utcnow().date(),
@@ -250,6 +271,7 @@ class Quotation(Resource):
             site_location=clean_text(data.get("site_location")),
             terms_conditions=clean_text(data.get("terms_conditions")),
             authorized_by=clean_text(data.get("authorized_by")),
+            prepared_by_id=current_user_id,
         )
 
         db.session.add(quotation)
@@ -291,7 +313,9 @@ class Quotation(Resource):
 
         return quotation.to_dict(), 201
     
+    
 class QuotationResource(Resource):
+    @jwt_required()
     def get(self, quotation_id):
         quotation = Quotations.query.filter_by(id=quotation_id, deleted_at=None).first()
 
@@ -300,6 +324,7 @@ class QuotationResource(Resource):
 
         return quotation.to_dict(), 200
 
+    @jwt_required()
     def delete(self, quotation_id):
         quotation = Quotations.query.filter_by(id=quotation_id, deleted_at=None).first()
 
@@ -315,10 +340,12 @@ class QuotationResource(Resource):
 # ==================== SALES ORDER RESOURCES ====================
 
 class SalesOrder(Resource):
+    @jwt_required()
     def get(self):
         orders = SalesOrders.query.filter_by(deleted_at=None).all()
         return [order.to_dict() for order in orders], 200
 
+    @jwt_required()
     def post(self):
         data = request.get_json()
         required_fields = {"customer_id"}
@@ -357,6 +384,7 @@ class SalesOrder(Resource):
 
 
 class SalesOrderResource(Resource):
+    @jwt_required()
     def get(self, order_id):
         order = SalesOrders.query.filter_by(id=order_id, deleted_at=None).first()
 
@@ -365,6 +393,7 @@ class SalesOrderResource(Resource):
 
         return order.to_dict(), 200
 
+    @jwt_required()
     def patch(self, order_id):
         order = SalesOrders.query.filter_by(id=order_id, deleted_at=None).first()
 
@@ -402,6 +431,7 @@ class SalesOrderResource(Resource):
 
         return order.to_dict(), 200
 
+    @jwt_required()
     def delete(self, order_id):
         order = SalesOrders.query.filter_by(id=order_id, deleted_at=None).first()
 
@@ -440,10 +470,12 @@ def calculate_invoice_totals(invoice):
 
 
 class Invoice(Resource):
+    @jwt_required()
     def get(self):
         invoices = Invoices.query.filter_by(deleted_at=None).all()
         return [invoice.to_dict() for invoice in invoices], 200
 
+    @jwt_required()
     def post(self):
         data = request.get_json()
         required_fields = {"customer_id", "items"}
@@ -518,6 +550,7 @@ class Invoice(Resource):
 
 
 class InvoiceResource(Resource):
+    @jwt_required()
     def get(self, invoice_id):
         invoice = Invoices.query.filter_by(id=invoice_id, deleted_at=None).first()
 
@@ -526,6 +559,7 @@ class InvoiceResource(Resource):
 
         return invoice.to_dict(), 200
 
+    @jwt_required()
     def patch(self, invoice_id):
         invoice = Invoices.query.filter_by(id=invoice_id, deleted_at=None).first()
 
@@ -604,6 +638,7 @@ class InvoiceResource(Resource):
 
         return invoice.to_dict(), 200
 
+    @jwt_required()
     def delete(self, invoice_id):
         invoice = Invoices.query.filter_by(id=invoice_id, deleted_at=None).first()
 
@@ -619,10 +654,12 @@ class InvoiceResource(Resource):
 # ==================== RECEIPT RESOURCES ====================
 
 class Receipt(Resource):
+    @jwt_required()
     def get(self):
         receipts = Receipts.query.filter_by(deleted_at=None).all()
         return [receipt.to_dict() for receipt in receipts], 200
 
+    @jwt_required()
     def post(self):
         data = request.get_json()
         required_fields = {"customer_id", "payment_method", "amount_received"}
@@ -680,6 +717,7 @@ class Receipt(Resource):
 
 
 class ReceiptResource(Resource):
+    @jwt_required()
     def get(self, receipt_id):
         receipt = Receipts.query.filter_by(id=receipt_id, deleted_at=None).first()
 
@@ -688,6 +726,7 @@ class ReceiptResource(Resource):
 
         return receipt.to_dict(), 200
 
+    @jwt_required()
     def patch(self, receipt_id):
         receipt = Receipts.query.filter_by(id=receipt_id, deleted_at=None).first()
 
@@ -725,6 +764,7 @@ class ReceiptResource(Resource):
 
         return receipt.to_dict(), 200
 
+    @jwt_required()
     def delete(self, receipt_id):
         receipt = Receipts.query.filter_by(id=receipt_id, deleted_at=None).first()
 
@@ -740,10 +780,12 @@ class ReceiptResource(Resource):
 # ==================== SUPPLIER RESOURCES ====================
 
 class Supplier(Resource):
+    @jwt_required()
     def get(self):
         suppliers = Suppliers.query.filter_by(deleted_at=None).all()
         return [supplier.to_dict() for supplier in suppliers], 200
 
+    @jwt_required()
     def post(self):
         data = request.get_json()
         required_fields = {"supplier_name", "phone"}
@@ -771,6 +813,7 @@ class Supplier(Resource):
 
 
 class SupplierResource(Resource):
+    @jwt_required()
     def get(self, supplier_id):
         supplier = Suppliers.query.filter_by(id=supplier_id, deleted_at=None).first()
 
@@ -779,6 +822,7 @@ class SupplierResource(Resource):
 
         return supplier.to_dict(), 200
 
+    @jwt_required()
     def patch(self, supplier_id):
         supplier = Suppliers.query.filter_by(id=supplier_id, deleted_at=None).first()
 
@@ -802,6 +846,7 @@ class SupplierResource(Resource):
 
         return supplier.to_dict(), 200
 
+    @jwt_required()
     def delete(self, supplier_id):
         supplier = Suppliers.query.filter_by(id=supplier_id, deleted_at=None).first()
 
@@ -817,10 +862,12 @@ class SupplierResource(Resource):
 # ==================== PURCHASE ORDER RESOURCES ====================
 
 class PurchaseOrder(Resource):
+    @jwt_required()
     def get(self):
         purchase_orders = PurchaseOrders.query.filter_by(deleted_at=None).all()
         return [po.to_dict() for po in purchase_orders], 200
 
+    @jwt_required()
     def post(self):
         data = request.get_json()
         required_fields = {"supplier_id", "items"}
@@ -895,6 +942,7 @@ class PurchaseOrder(Resource):
 
 
 class PurchaseOrderResource(Resource):
+    @jwt_required()
     def get(self, po_id):
         po = PurchaseOrders.query.filter_by(id=po_id, deleted_at=None).first()
 
@@ -903,6 +951,7 @@ class PurchaseOrderResource(Resource):
 
         return po.to_dict(), 200
 
+    @jwt_required()
     def patch(self, po_id):
         po = PurchaseOrders.query.filter_by(id=po_id, deleted_at=None).first()
 
@@ -972,6 +1021,7 @@ class PurchaseOrderResource(Resource):
 
         return po.to_dict(), 200
 
+    @jwt_required()
     def delete(self, po_id):
         po = PurchaseOrders.query.filter_by(id=po_id, deleted_at=None).first()
 
@@ -987,10 +1037,12 @@ class PurchaseOrderResource(Resource):
 # ==================== STOCK TRANSACTION RESOURCES ====================
 
 class StockTransaction(Resource):
+    @jwt_required()
     def get(self):
         transactions = StockTransactions.query.filter_by(deleted_at=None).all()
         return [transaction.to_dict() for transaction in transactions], 200
 
+    @jwt_required()
     def post(self):
         data = request.get_json()
         required_fields = {"transaction_type", "product_id", "quantity_change"}
@@ -1031,7 +1083,7 @@ class StockTransaction(Resource):
             quantity_after=quantity_after,
             unit_cost=float(data.get("unit_cost", product.buying_price or 0)),
             notes=clean_text(data.get("notes")),
-            performed_by=data.get("performed_by"),
+            performed_by=get_jwt_identity(),  # Automatically set to current user
         )
 
         db.session.add(transaction)
@@ -1045,6 +1097,7 @@ class StockTransaction(Resource):
 
 
 class StockTransactionResource(Resource):
+    @jwt_required()
     def get(self, transaction_id):
         transaction = StockTransactions.query.filter_by(id=transaction_id, deleted_at=None).first()
 
@@ -1053,6 +1106,7 @@ class StockTransactionResource(Resource):
 
         return transaction.to_dict(), 200
 
+    @jwt_required()
     def delete(self, transaction_id):
         transaction = StockTransactions.query.filter_by(id=transaction_id, deleted_at=None).first()
 
@@ -1068,10 +1122,12 @@ class StockTransactionResource(Resource):
 # ==================== PROJECT RESOURCES ====================
 
 class Project(Resource):
+    @jwt_required()
     def get(self):
         projects = Projects.query.filter_by(deleted_at=None).all()
         return [project.to_dict() for project in projects], 200
 
+    @jwt_required()
     def post(self):
         data = request.get_json()
         required_fields = {"project_name", "customer_id"}
@@ -1107,6 +1163,7 @@ class Project(Resource):
 
 
 class ProjectResource(Resource):
+    @jwt_required()
     def get(self, project_id):
         project = Projects.query.filter_by(id=project_id, deleted_at=None).first()
 
@@ -1115,6 +1172,7 @@ class ProjectResource(Resource):
 
         return project.to_dict(), 200
 
+    @jwt_required()
     def patch(self, project_id):
         project = Projects.query.filter_by(id=project_id, deleted_at=None).first()
 
@@ -1148,6 +1206,7 @@ class ProjectResource(Resource):
 
         return project.to_dict(), 200
 
+    @jwt_required()
     def delete(self, project_id):
         project = Projects.query.filter_by(id=project_id, deleted_at=None).first()
 
