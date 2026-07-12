@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from flask_jwt_extended import JWTManager
 from models import db
 import os
-from resources.crud import (
+from resources.crud import (    
     Customer, CustomerResource,
     Product, ProductResource,
     Quotation, QuotationResource,
