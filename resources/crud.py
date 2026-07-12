@@ -1,6 +1,7 @@
 from datetime import datetime
 from flask import request
 from flask_restful import Resource
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import db, Customers, Products, Quotations, QuotationItems, SalesOrders, Invoices, InvoiceItems, Receipts, Suppliers, PurchaseOrders, PurchaseOrderItems, StockTransactions, Projects
 
 VAT_RATE = 0.16

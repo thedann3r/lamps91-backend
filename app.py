@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 from flask_jwt_extended import JWTManager
 from models import db
 import os
+from datetime import timedelta
+from resources.authentication import Register, Login, RefreshToken, Logout
 from resources.crud import (    
     Customer, CustomerResource,
     Product, ProductResource,
@@ -27,6 +29,8 @@ app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] =  'sqlite:///data.db'
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "default_secret_key")
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
+app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=30)
 
 db.init_app(app)
 migrate = Migrate(app, db)
@@ -78,6 +82,12 @@ api.add_resource(StockTransactionResource, "/stocktransactions/<int:transaction_
 # Project endpoints
 api.add_resource(Project, "/projects")
 api.add_resource(ProjectResource, "/projects/<int:project_id>")
+
+
+api.add_resource(Register, "/auth/register")
+api.add_resource(Login, "/auth/login")
+api.add_resource(RefreshToken, "/auth/refresh")
+api.add_resource(Logout, "/auth/logout")
 
 if __name__ == "__main__":
     app.run(debug = True)
