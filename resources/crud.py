@@ -3,6 +3,7 @@ from flask import request
 from flask_restful import Resource
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import db, Customers, Products, Quotations, QuotationItems, SalesOrders, Invoices, InvoiceItems, Receipts, Suppliers, PurchaseOrders, PurchaseOrderItems, StockTransactions, Projects
+from resources.decorators import admin_required, finance_required, store_required, sales_required, engineer_required
 
 VAT_RATE = 0.16
 VAT_EXEMPT_CATEGORIES = {"solar panels", "inverters", "batteries"}
@@ -56,11 +57,13 @@ def calculate_quote_totals(quotation):
 
 class Customer(Resource):
     @jwt_required()
+    @sales_required  # Sales and admin can view customers
     def get(self):
         customers = Customers.query.filter_by(deleted_at=None).all()
         return [customer.to_dict() for customer in customers], 200
 
     @jwt_required()
+    @sales_required  # Sales and admin can view customers
     def post(self):
         data = request.get_json()
         required_fields = {"customer_name", "phone"}
@@ -87,6 +90,7 @@ class Customer(Resource):
 
 class CustomerResource(Resource):
     @jwt_required()
+    @sales_required  # Sales and admin can view customers
     def get(self, customer_id):
         customer = Customers.query.filter_by(id=customer_id, deleted_at=None).first()
 
@@ -96,6 +100,7 @@ class CustomerResource(Resource):
         return customer.to_dict(), 200
 
     @jwt_required()
+    @sales_required  # Sales and admin can view customers
     def patch(self, customer_id):
         customer = Customers.query.filter_by(id=customer_id, deleted_at=None).first()
 
@@ -122,6 +127,7 @@ class CustomerResource(Resource):
         return customer.to_dict(), 200
 
     @jwt_required()
+    @admin_required  # Only admin can delete customers (soft delete)
     def delete(self, customer_id):
         customer = Customers.query.filter_by(id=customer_id, deleted_at=None).first()
 
@@ -138,11 +144,13 @@ class CustomerResource(Resource):
 
 class Product(Resource):
     @jwt_required()
+    @store_required  # Store managers and admin can view products
     def get(self):
         products = Products.query.filter_by(deleted_at=None).all()
         return [product.to_dict() for product in products], 200
 
     @jwt_required()
+    @store_required  # Store managers and admin can view products
     def post(self):
         data = request.get_json()
         required_fields = {"item_code", "product_name", "category", "selling_price"}
@@ -184,6 +192,7 @@ class Product(Resource):
 
 class ProductResource(Resource):
     @jwt_required()
+    @store_required  # Store managers and admin can view products
     def get(self, product_id):
         product = Products.query.filter_by(id=product_id, deleted_at=None).first()
 
@@ -193,6 +202,7 @@ class ProductResource(Resource):
         return product.to_dict(), 200
 
     @jwt_required()
+    @store_required  # Store managers and admin can view products
     def patch(self, product_id):
         product = Products.query.filter_by(id=product_id, deleted_at=None).first()
 
@@ -221,6 +231,7 @@ class ProductResource(Resource):
         return product.to_dict(), 200
 
     @jwt_required()
+    @admin_required
     def delete(self, product_id):
         product = Products.query.filter_by(id=product_id, deleted_at=None).first()
 
@@ -237,11 +248,13 @@ class ProductResource(Resource):
 
 class Quotation(Resource):
     @jwt_required()
+    @sales_required  # Sales and admin can view quotes
     def get(self):
         quotations = Quotations.query.filter_by(deleted_at=None).all()
         return [quotation.to_dict() for quotation in quotations], 200
     
     @jwt_required()
+    @sales_required  # Sales and admin can view quotes
     def post(self):
         data = request.get_json()
         required_fields = {"quote_number", "customer_id", "items"}
@@ -316,6 +329,7 @@ class Quotation(Resource):
     
 class QuotationResource(Resource):
     @jwt_required()
+    @sales_required  # Sales and admin can view quotes
     def get(self, quotation_id):
         quotation = Quotations.query.filter_by(id=quotation_id, deleted_at=None).first()
 
@@ -325,6 +339,7 @@ class QuotationResource(Resource):
         return quotation.to_dict(), 200
 
     @jwt_required()
+    @admin_required
     def delete(self, quotation_id):
         quotation = Quotations.query.filter_by(id=quotation_id, deleted_at=None).first()
 
@@ -341,11 +356,13 @@ class QuotationResource(Resource):
 
 class SalesOrder(Resource):
     @jwt_required()
+    @sales_required
     def get(self):
         orders = SalesOrders.query.filter_by(deleted_at=None).all()
         return [order.to_dict() for order in orders], 200
 
     @jwt_required()
+    @sales_required
     def post(self):
         data = request.get_json()
         required_fields = {"customer_id"}
@@ -385,6 +402,7 @@ class SalesOrder(Resource):
 
 class SalesOrderResource(Resource):
     @jwt_required()
+    @sales_required
     def get(self, order_id):
         order = SalesOrders.query.filter_by(id=order_id, deleted_at=None).first()
 
@@ -394,6 +412,7 @@ class SalesOrderResource(Resource):
         return order.to_dict(), 200
 
     @jwt_required()
+    @sales_required
     def patch(self, order_id):
         order = SalesOrders.query.filter_by(id=order_id, deleted_at=None).first()
 
@@ -432,6 +451,7 @@ class SalesOrderResource(Resource):
         return order.to_dict(), 200
 
     @jwt_required()
+    @admin_required
     def delete(self, order_id):
         order = SalesOrders.query.filter_by(id=order_id, deleted_at=None).first()
 
@@ -444,7 +464,6 @@ class SalesOrderResource(Resource):
         return {"message": "Sales order deleted successfully!"}, 200
 
 
-# ==================== INVOICE RESOURCES ====================
 
 def calculate_invoice_totals(invoice):
     sub_total = 0
@@ -468,14 +487,17 @@ def calculate_invoice_totals(invoice):
     invoice.invoice_total = sub_total + invoice.vat_amount
     invoice.balance_due = invoice.invoice_total - (invoice.amount_paid or 0)
 
+# ==================== INVOICE RESOURCES ====================
 
 class Invoice(Resource):
     @jwt_required()
+    @finance_required  # Finance and admin can view invoices
     def get(self):
         invoices = Invoices.query.filter_by(deleted_at=None).all()
         return [invoice.to_dict() for invoice in invoices], 200
 
     @jwt_required()
+    @finance_required  # Finance and admin can view invoices
     def post(self):
         data = request.get_json()
         required_fields = {"customer_id", "items"}
@@ -551,6 +573,7 @@ class Invoice(Resource):
 
 class InvoiceResource(Resource):
     @jwt_required()
+    @finance_required  # Finance and admin can view invoices
     def get(self, invoice_id):
         invoice = Invoices.query.filter_by(id=invoice_id, deleted_at=None).first()
 
@@ -560,6 +583,7 @@ class InvoiceResource(Resource):
         return invoice.to_dict(), 200
 
     @jwt_required()
+    @finance_required  # Finance and admin can view invoices
     def patch(self, invoice_id):
         invoice = Invoices.query.filter_by(id=invoice_id, deleted_at=None).first()
 
@@ -639,6 +663,7 @@ class InvoiceResource(Resource):
         return invoice.to_dict(), 200
 
     @jwt_required()
+    @admin_required
     def delete(self, invoice_id):
         invoice = Invoices.query.filter_by(id=invoice_id, deleted_at=None).first()
 
@@ -655,11 +680,13 @@ class InvoiceResource(Resource):
 
 class Receipt(Resource):
     @jwt_required()
+    @finance_required  # Finance and admin can view invoices
     def get(self):
         receipts = Receipts.query.filter_by(deleted_at=None).all()
         return [receipt.to_dict() for receipt in receipts], 200
 
     @jwt_required()
+    @finance_required  # Finance and admin can view invoices
     def post(self):
         data = request.get_json()
         required_fields = {"customer_id", "payment_method", "amount_received"}
@@ -718,6 +745,7 @@ class Receipt(Resource):
 
 class ReceiptResource(Resource):
     @jwt_required()
+    @finance_required  # Finance and admin can view invoices
     def get(self, receipt_id):
         receipt = Receipts.query.filter_by(id=receipt_id, deleted_at=None).first()
 
@@ -727,6 +755,7 @@ class ReceiptResource(Resource):
         return receipt.to_dict(), 200
 
     @jwt_required()
+    @finance_required  # Finance and admin can view invoices
     def patch(self, receipt_id):
         receipt = Receipts.query.filter_by(id=receipt_id, deleted_at=None).first()
 
@@ -765,6 +794,7 @@ class ReceiptResource(Resource):
         return receipt.to_dict(), 200
 
     @jwt_required()
+    @admin_required
     def delete(self, receipt_id):
         receipt = Receipts.query.filter_by(id=receipt_id, deleted_at=None).first()
 
@@ -781,11 +811,13 @@ class ReceiptResource(Resource):
 
 class Supplier(Resource):
     @jwt_required()
+    @store_required  # Store managers and admin can view suppliers
     def get(self):
         suppliers = Suppliers.query.filter_by(deleted_at=None).all()
         return [supplier.to_dict() for supplier in suppliers], 200
 
     @jwt_required()
+    @store_required  # Store managers and admin can view suppliers
     def post(self):
         data = request.get_json()
         required_fields = {"supplier_name", "phone"}
@@ -814,6 +846,7 @@ class Supplier(Resource):
 
 class SupplierResource(Resource):
     @jwt_required()
+    @store_required  # Store managers and admin can view suppliers
     def get(self, supplier_id):
         supplier = Suppliers.query.filter_by(id=supplier_id, deleted_at=None).first()
 
@@ -823,6 +856,7 @@ class SupplierResource(Resource):
         return supplier.to_dict(), 200
 
     @jwt_required()
+    @store_required  # Store managers and admin can view suppliers
     def patch(self, supplier_id):
         supplier = Suppliers.query.filter_by(id=supplier_id, deleted_at=None).first()
 
@@ -847,6 +881,7 @@ class SupplierResource(Resource):
         return supplier.to_dict(), 200
 
     @jwt_required()
+    @admin_required
     def delete(self, supplier_id):
         supplier = Suppliers.query.filter_by(id=supplier_id, deleted_at=None).first()
 
@@ -863,11 +898,13 @@ class SupplierResource(Resource):
 
 class PurchaseOrder(Resource):
     @jwt_required()
+    @store_required  # Store managers and admin can view purchase orders
     def get(self):
         purchase_orders = PurchaseOrders.query.filter_by(deleted_at=None).all()
         return [po.to_dict() for po in purchase_orders], 200
 
     @jwt_required()
+    @store_required  # Store managers and admin can view purchase orders                                                                                
     def post(self):
         data = request.get_json()
         required_fields = {"supplier_id", "items"}
@@ -943,6 +980,7 @@ class PurchaseOrder(Resource):
 
 class PurchaseOrderResource(Resource):
     @jwt_required()
+    @store_required  # Store managers and admin can view purchase orders
     def get(self, po_id):
         po = PurchaseOrders.query.filter_by(id=po_id, deleted_at=None).first()
 
@@ -952,6 +990,7 @@ class PurchaseOrderResource(Resource):
         return po.to_dict(), 200
 
     @jwt_required()
+    @store_required  # Store managers and admin can view purchase orders
     def patch(self, po_id):
         po = PurchaseOrders.query.filter_by(id=po_id, deleted_at=None).first()
 
@@ -1022,6 +1061,7 @@ class PurchaseOrderResource(Resource):
         return po.to_dict(), 200
 
     @jwt_required()
+    @admin_required
     def delete(self, po_id):
         po = PurchaseOrders.query.filter_by(id=po_id, deleted_at=None).first()
 
@@ -1038,11 +1078,13 @@ class PurchaseOrderResource(Resource):
 
 class StockTransaction(Resource):
     @jwt_required()
+    @store_required  # Store managers and admin can view stock transactions
     def get(self):
         transactions = StockTransactions.query.filter_by(deleted_at=None).all()
         return [transaction.to_dict() for transaction in transactions], 200
 
     @jwt_required()
+    @store_required  # Store managers and admin can view stock transactions
     def post(self):
         data = request.get_json()
         required_fields = {"transaction_type", "product_id", "quantity_change"}
@@ -1098,6 +1140,7 @@ class StockTransaction(Resource):
 
 class StockTransactionResource(Resource):
     @jwt_required()
+    @store_required  # Store managers and admin can view stock transactions
     def get(self, transaction_id):
         transaction = StockTransactions.query.filter_by(id=transaction_id, deleted_at=None).first()
 
@@ -1107,6 +1150,7 @@ class StockTransactionResource(Resource):
         return transaction.to_dict(), 200
 
     @jwt_required()
+    @admin_required
     def delete(self, transaction_id):
         transaction = StockTransactions.query.filter_by(id=transaction_id, deleted_at=None).first()
 
@@ -1123,11 +1167,13 @@ class StockTransactionResource(Resource):
 
 class Project(Resource):
     @jwt_required()
+    @engineer_required  # Engineers and admin can view projects
     def get(self):
         projects = Projects.query.filter_by(deleted_at=None).all()
         return [project.to_dict() for project in projects], 200
 
     @jwt_required()
+    @engineer_required  # Engineers and admin can view projects
     def post(self):
         data = request.get_json()
         required_fields = {"project_name", "customer_id"}
@@ -1164,6 +1210,7 @@ class Project(Resource):
 
 class ProjectResource(Resource):
     @jwt_required()
+    @engineer_required  # Engineers and admin can view projects
     def get(self, project_id):
         project = Projects.query.filter_by(id=project_id, deleted_at=None).first()
 
@@ -1173,6 +1220,7 @@ class ProjectResource(Resource):
         return project.to_dict(), 200
 
     @jwt_required()
+    @engineer_required  # Engineers and admin can view projects
     def patch(self, project_id):
         project = Projects.query.filter_by(id=project_id, deleted_at=None).first()
 
@@ -1207,6 +1255,7 @@ class ProjectResource(Resource):
         return project.to_dict(), 200
 
     @jwt_required()
+    @admin_required
     def delete(self, project_id):
         project = Projects.query.filter_by(id=project_id, deleted_at=None).first()
 
