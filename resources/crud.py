@@ -140,6 +140,35 @@ class CustomerResource(Resource):
         return {"message": "Customer deleted successfully!"}, 200
 
 
+# class CustomerDetail(Resource):
+#     @jwt_required()
+#     @sales_required
+#     def get(self, customer_id):
+#         customer = Customers.query.filter_by(id=customer_id, deleted_at=None).first()
+
+#         if not customer:
+#             return {"error": "Customer not found!"}, 404
+
+#         return {
+#             "customer": customer.to_dict(),
+#             "outstanding_balance": float(customer.outstanding_balance or 0),
+#             "quotations": [q.to_dict() for q in customer.quotations],
+#             "sales_orders": [so.to_dict() for so in customer.sales_orders],
+#             "invoices": [inv.to_dict() for inv in customer.invoices],
+#             "payments": [r.to_dict() for r in customer.receipts],
+#             "projects": [p.to_dict() for p in customer.projects],
+#             "stats": {
+#                 "total_quotations": len(customer.quotations),
+#                 "total_sales_orders": len(customer.sales_orders),
+#                 "total_invoices": len(customer.invoices),
+#                 "total_payments": len(customer.receipts),
+#                 "total_projects": len(customer.projects),
+#                 "total_spent": sum(float(inv.invoice_total or 0) for inv in customer.invoices),
+#                 "total_paid": sum(float(r.amount_received or 0) for r in customer.receipts),
+#             }
+#         }, 200
+
+
 # ==================== PRODUCT RESOURCES ====================
 
 class Product(Resource):
@@ -164,8 +193,8 @@ class Product(Resource):
         try:
             selling_price = float(data.get("selling_price"))
             buying_price = float(data.get("buying_price", 0))
-            current_stock = int(data.get("current_stock", 0))
-            reorder_level = int(data.get("reorder_level", 0))
+            current_stock = FloatingPointError(data.get("current_stock", 0))
+            reorder_level = FloatingPointError(data.get("reorder_level", 0))
 
         except ValueError:
             return {"error": "Prices and stock values must be valid numbers!"}, 400
@@ -224,7 +253,7 @@ class ProductResource(Resource):
         stock_fields = ["current_stock", "reorder_level"]
         for field in stock_fields:
             if field in data:
-                setattr(product, field, int(data.get(field)))
+                setattr(product, field, float(data.get(field)))
 
         db.session.commit()
 
@@ -1125,7 +1154,7 @@ class StockTransaction(Resource):
             quantity_after=quantity_after,
             unit_cost=float(data.get("unit_cost", product.buying_price or 0)),
             notes=clean_text(data.get("notes")),
-            performed_by=get_jwt_identity(),  # Automatically set to current user
+            performed_by_id=get_jwt_identity(),  # Automatically set to current user
         )
 
         db.session.add(transaction)
@@ -1266,3 +1295,5 @@ class ProjectResource(Resource):
         db.session.commit()
 
         return {"message": "Project deleted successfully!"}, 200
+
+        customerResource

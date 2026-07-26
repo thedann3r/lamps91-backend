@@ -20,7 +20,8 @@ from resources.crud import (
     Supplier, SupplierResource,
     PurchaseOrder, PurchaseOrderResource,
     StockTransaction, StockTransactionResource,
-    Project, ProjectResource
+    Project, ProjectResource, 
+    # customerDetail
 )
 
 load_dotenv(override=True)
@@ -46,6 +47,7 @@ def index():
 # customer endpoints
 api.add_resource(Customer, "/customers")
 api.add_resource(CustomerResource, "/customers/<int:customer_id>")
+# api.add_resource(CustomerDetail, "/customers/<int:customer_id>/details")
 
 # Product endpoints
 api.add_resource(Product, "/products")
