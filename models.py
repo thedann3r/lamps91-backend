@@ -50,9 +50,29 @@ class Customers(db.Model, SerializerMixin):
     deleted_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+     # 1. Quotations
     quotations = db.relationship("Quotations", back_populates="customer", lazy=True)
+    
+    # 2. Sales Orders
+    sales_orders = db.relationship("SalesOrders", backref="customer", lazy=True)
+    
+    # 3. Invoices
+    invoices = db.relationship("Invoices", backref="customer", lazy=True)
+    
+    # 4. Receipts (Payments)
+    receipts = db.relationship("Receipts", backref="customer", lazy=True)
+    
+    # 5. Projects
+    projects = db.relationship("Projects", backref="customer", lazy=True)
 
-    serialize_rules = ("-quotations.customer",)
+    # Serialization rules (prevent recursion)
+    serialize_rules = (
+        "-quotations.customer",
+        "-sales_orders.customer",
+        "-invoices.customer",
+        "-receipts.customer",
+        "-projects.customer",
+    )
 
     def to_dict(self):
         return {
