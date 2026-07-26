@@ -6,6 +6,10 @@ from sqlalchemy_serializer import SerializerMixin
 db = SQLAlchemy()
 
 
+def money_value(value):
+    return float(value) if value is not None else 0
+
+
 class Users(db.Model, SerializerMixin):
     __tablename__ = "users"
 
@@ -20,8 +24,13 @@ class Users(db.Model, SerializerMixin):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     quotations = db.relationship("Quotations", back_populates="prepared_by", lazy=True)
+    stock_transactions = db.relationship("StockTransactions", back_populates="user", lazy=True)
 
-    serialize_rules = ("-password", "-quotations.prepared_by")
+    serialize_rules = (
+        "-password",
+        "-quotations.prepared_by",
+        "-stock_transactions.user",
+    )
 
     def to_dict(self):
         return {
@@ -46,26 +55,16 @@ class Customers(db.Model, SerializerMixin):
     physical_address = db.Column(db.Text, nullable=True)
     county = db.Column(db.String(100), nullable=True)
     customer_type = db.Column(db.String(50), nullable=False, default="commercial")
-    outstanding_balance = db.Column(db.Float, default=0)
+    outstanding_balance = db.Column(db.Numeric(12, 2), default=0)
     deleted_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-     # 1. Quotations
     quotations = db.relationship("Quotations", back_populates="customer", lazy=True)
-    
-    # 2. Sales Orders
-    sales_orders = db.relationship("SalesOrders", backref="customer", lazy=True)
-    
-    # 3. Invoices
-    invoices = db.relationship("Invoices", backref="customer", lazy=True)
-    
-    # 4. Receipts (Payments)
-    receipts = db.relationship("Receipts", backref="customer", lazy=True)
-    
-    # 5. Projects
-    projects = db.relationship("Projects", backref="customer", lazy=True)
+    sales_orders = db.relationship("SalesOrders", back_populates="customer", lazy=True)
+    invoices = db.relationship("Invoices", back_populates="customer", lazy=True)
+    receipts = db.relationship("Receipts", back_populates="customer", lazy=True)
+    projects = db.relationship("Projects", back_populates="customer", lazy=True)
 
-    # Serialization rules (prevent recursion)
     serialize_rules = (
         "-quotations.customer",
         "-sales_orders.customer",
@@ -85,7 +84,7 @@ class Customers(db.Model, SerializerMixin):
             "physical_address": self.physical_address,
             "county": self.county,
             "customer_type": self.customer_type,
-            "outstanding_balance": self.outstanding_balance,
+            "outstanding_balance": money_value(self.outstanding_balance),
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -99,17 +98,25 @@ class Products(db.Model, SerializerMixin):
     category = db.Column(db.String(100), nullable=False)
     brand = db.Column(db.String(100), nullable=True)
     unit = db.Column(db.String(50), nullable=False, default="pcs")
-    buying_price = db.Column(db.Float, default=0)
-    selling_price = db.Column(db.Float, nullable=False)
+    buying_price = db.Column(db.Numeric(12, 2), default=0)
+    selling_price = db.Column(db.Numeric(12, 2), nullable=False)
     vat_status = db.Column(db.String(20), nullable=False, default="vatable")
-    current_stock = db.Column(db.Integer, default=0)
-    reorder_level = db.Column(db.Integer, default=0)
+    current_stock = db.Column(db.Float, default=0)
+    reorder_level = db.Column(db.Float, default=0)
     deleted_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     quotation_items = db.relationship("QuotationItems", back_populates="product", lazy=True)
+    invoice_items = db.relationship("InvoiceItems", back_populates="product", lazy=True)
+    purchase_order_items = db.relationship("PurchaseOrderItems", back_populates="product", lazy=True)
+    stock_transactions = db.relationship("StockTransactions", back_populates="product", lazy=True)
 
-    serialize_rules = ("-quotation_items.product",)
+    serialize_rules = (
+        "-quotation_items.product",
+        "-invoice_items.product",
+        "-purchase_order_items.product",
+        "-stock_transactions.product",
+    )
 
     def to_dict(self):
         return {
@@ -119,8 +126,8 @@ class Products(db.Model, SerializerMixin):
             "category": self.category,
             "brand": self.brand,
             "unit": self.unit,
-            "buying_price": self.buying_price,
-            "selling_price": self.selling_price,
+            "buying_price": money_value(self.buying_price),
+            "selling_price": money_value(self.selling_price),
             "vat_status": self.vat_status,
             "current_stock": self.current_stock,
             "reorder_level": self.reorder_level,
@@ -139,11 +146,11 @@ class Quotations(db.Model, SerializerMixin):
     project_name = db.Column(db.String(150), nullable=True)
     site_location = db.Column(db.String(150), nullable=True)
     status = db.Column(db.String(50), default="draft")
-    sub_total = db.Column(db.Float, default=0)
-    vat_exempt_total = db.Column(db.Float, default=0)
-    vatable_total = db.Column(db.Float, default=0)
-    vat_amount = db.Column(db.Float, default=0)
-    grand_total = db.Column(db.Float, default=0)
+    sub_total = db.Column(db.Numeric(12, 2), default=0)
+    vat_exempt_total = db.Column(db.Numeric(12, 2), default=0)
+    vatable_total = db.Column(db.Numeric(12, 2), default=0)
+    vat_amount = db.Column(db.Numeric(12, 2), default=0)
+    grand_total = db.Column(db.Numeric(12, 2), default=0)
     terms_conditions = db.Column(db.Text, nullable=True)
     prepared_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     authorized_by = db.Column(db.String(100), nullable=True)
@@ -153,8 +160,16 @@ class Quotations(db.Model, SerializerMixin):
     customer = db.relationship("Customers", back_populates="quotations")
     prepared_by = db.relationship("Users", back_populates="quotations")
     items = db.relationship("QuotationItems", back_populates="quotation", lazy=True, cascade="all, delete-orphan")
+    sales_order = db.relationship("SalesOrders", back_populates="quotation", uselist=False)
+    invoice = db.relationship("Invoices", back_populates="quotation", uselist=False)
 
-    serialize_rules = ("-customer.quotations", "-items.quotation", "-prepared_by.quotations")
+    serialize_rules = (
+        "-customer.quotations",
+        "-prepared_by.quotations",
+        "-items.quotation",
+        "-sales_order.quotation",
+        "-invoice.quotation",
+    )
 
     def to_dict(self):
         return {
@@ -167,11 +182,11 @@ class Quotations(db.Model, SerializerMixin):
             "project_name": self.project_name,
             "site_location": self.site_location,
             "status": self.status,
-            "sub_total": self.sub_total,
-            "vat_exempt_total": self.vat_exempt_total,
-            "vatable_total": self.vatable_total,
-            "vat_amount": self.vat_amount,
-            "grand_total": self.grand_total,
+            "sub_total": money_value(self.sub_total),
+            "vat_exempt_total": money_value(self.vat_exempt_total),
+            "vatable_total": money_value(self.vatable_total),
+            "vat_amount": money_value(self.vat_amount),
+            "grand_total": money_value(self.grand_total),
             "terms_conditions": self.terms_conditions,
             "authorized_by": self.authorized_by,
             "items": [item.to_dict() for item in self.items],
@@ -187,10 +202,10 @@ class QuotationItems(db.Model, SerializerMixin):
     product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=True)
     item_description = db.Column(db.Text, nullable=False)
     quantity = db.Column(db.Float, nullable=False, default=1)
-    unit_price = db.Column(db.Float, nullable=False, default=0)
-    discount = db.Column(db.Float, default=0)
+    unit_price = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    discount = db.Column(db.Numeric(12, 2), default=0)
     vat_status = db.Column(db.String(20), nullable=False, default="vatable")
-    line_total = db.Column(db.Float, default=0)
+    line_total = db.Column(db.Numeric(12, 2), default=0)
 
     quotation = db.relationship("Quotations", back_populates="items")
     product = db.relationship("Products", back_populates="quotation_items")
@@ -204,11 +219,12 @@ class QuotationItems(db.Model, SerializerMixin):
             "product_id": self.product_id,
             "item_description": self.item_description,
             "quantity": self.quantity,
-            "unit_price": self.unit_price,
-            "discount": self.discount,
+            "unit_price": money_value(self.unit_price),
+            "discount": money_value(self.discount),
             "vat_status": self.vat_status,
-            "line_total": self.line_total,
+            "line_total": money_value(self.line_total),
         }
+
 
 class SalesOrders(db.Model, SerializerMixin):
     __tablename__ = "sales_orders"
@@ -217,20 +233,19 @@ class SalesOrders(db.Model, SerializerMixin):
     so_number = db.Column(db.String(50), unique=True, nullable=False)
     so_date = db.Column(db.Date, default=date.today)
     customer_id = db.Column(db.Integer, db.ForeignKey("customers.id"), nullable=False)
-    quotation_id = db.Column(db.Integer, db.ForeignKey("quotations.id"), nullable=True)
+    quotation_id = db.Column(db.Integer, db.ForeignKey("quotations.id"), nullable=True, unique=True)
     project_name = db.Column(db.String(150), nullable=True)
     delivery_date = db.Column(db.Date, nullable=True)
     inventory_reserved = db.Column(db.Boolean, default=False)
-    installation_team = db.Column(db.String(200), nullable=True)  # Comma-separated names or team ID
-    status = db.Column(db.String(50), default="pending")  # pending, approved, delivered, installed, completed
-    total_amount = db.Column(db.Float, default=0)
+    installation_team = db.Column(db.String(200), nullable=True)
+    status = db.Column(db.String(50), default="pending")
+    total_amount = db.Column(db.Numeric(12, 2), default=0)
     notes = db.Column(db.Text, nullable=True)
     deleted_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Relationships
-    customer = db.relationship("Customers", backref="sales_orders")
-    quotation = db.relationship("Quotations", backref="sales_order", uselist=False)
+    customer = db.relationship("Customers", back_populates="sales_orders")
+    quotation = db.relationship("Quotations", back_populates="sales_order")
     invoice = db.relationship("Invoices", back_populates="sales_order", uselist=False)
 
     serialize_rules = ("-customer.sales_orders", "-quotation.sales_order", "-invoice.sales_order")
@@ -248,10 +263,11 @@ class SalesOrders(db.Model, SerializerMixin):
             "inventory_reserved": self.inventory_reserved,
             "installation_team": self.installation_team,
             "status": self.status,
-            "total_amount": self.total_amount,
+            "total_amount": money_value(self.total_amount),
             "notes": self.notes,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
 
 class Invoices(db.Model, SerializerMixin):
     __tablename__ = "invoices"
@@ -261,32 +277,34 @@ class Invoices(db.Model, SerializerMixin):
     invoice_date = db.Column(db.Date, default=date.today)
     due_date = db.Column(db.Date, nullable=True)
     customer_id = db.Column(db.Integer, db.ForeignKey("customers.id"), nullable=False)
-    sales_order_id = db.Column(db.Integer, db.ForeignKey("sales_orders.id"), nullable=True)
-    quotation_id = db.Column(db.Integer, db.ForeignKey("quotations.id"), nullable=True)
-    reference = db.Column(db.String(100), nullable=True)  # Quote or SO reference
-    
-    # Financial fields
-    sub_total = db.Column(db.Float, default=0)
-    vat_exempt_total = db.Column(db.Float, default=0)
-    vatable_total = db.Column(db.Float, default=0)
-    vat_amount = db.Column(db.Float, default=0)
-    invoice_total = db.Column(db.Float, default=0)
-    amount_paid = db.Column(db.Float, default=0)
-    balance_due = db.Column(db.Float, default=0)
-    
-    status = db.Column(db.String(50), default="pending")  # pending, paid, overdue, cancelled
+    sales_order_id = db.Column(db.Integer, db.ForeignKey("sales_orders.id"), nullable=True, unique=True)
+    quotation_id = db.Column(db.Integer, db.ForeignKey("quotations.id"), nullable=True, unique=True)
+    reference = db.Column(db.String(100), nullable=True)
+    sub_total = db.Column(db.Numeric(12, 2), default=0)
+    vat_exempt_total = db.Column(db.Numeric(12, 2), default=0)
+    vatable_total = db.Column(db.Numeric(12, 2), default=0)
+    vat_amount = db.Column(db.Numeric(12, 2), default=0)
+    invoice_total = db.Column(db.Numeric(12, 2), default=0)
+    amount_paid = db.Column(db.Numeric(12, 2), default=0)
+    balance_due = db.Column(db.Numeric(12, 2), default=0)
+    status = db.Column(db.String(50), default="pending")
     notes = db.Column(db.Text, nullable=True)
     deleted_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Relationships
-    customer = db.relationship("Customers", backref="invoices")
+    customer = db.relationship("Customers", back_populates="invoices")
     sales_order = db.relationship("SalesOrders", back_populates="invoice")
-    quotation = db.relationship("Quotations", backref="invoice", uselist=False)
+    quotation = db.relationship("Quotations", back_populates="invoice")
     receipts = db.relationship("Receipts", back_populates="invoice", lazy=True, cascade="all, delete-orphan")
     invoice_items = db.relationship("InvoiceItems", back_populates="invoice", lazy=True, cascade="all, delete-orphan")
 
-    serialize_rules = ("-customer.invoices", "-sales_order.invoice", "-quotation.invoice", "-receipts.invoice", "-invoice_items.invoice")
+    serialize_rules = (
+        "-customer.invoices",
+        "-sales_order.invoice",
+        "-quotation.invoice",
+        "-receipts.invoice",
+        "-invoice_items.invoice",
+    )
 
     def to_dict(self):
         return {
@@ -299,19 +317,20 @@ class Invoices(db.Model, SerializerMixin):
             "sales_order_id": self.sales_order_id,
             "quotation_id": self.quotation_id,
             "reference": self.reference,
-            "sub_total": self.sub_total,
-            "vat_exempt_total": self.vat_exempt_total,
-            "vatable_total": self.vatable_total,
-            "vat_amount": self.vat_amount,
-            "invoice_total": self.invoice_total,
-            "amount_paid": self.amount_paid,
-            "balance_due": self.balance_due,
+            "sub_total": money_value(self.sub_total),
+            "vat_exempt_total": money_value(self.vat_exempt_total),
+            "vatable_total": money_value(self.vatable_total),
+            "vat_amount": money_value(self.vat_amount),
+            "invoice_total": money_value(self.invoice_total),
+            "amount_paid": money_value(self.amount_paid),
+            "balance_due": money_value(self.balance_due),
             "status": self.status,
             "notes": self.notes,
             "items": [item.to_dict() for item in self.invoice_items],
             "receipts": [receipt.to_dict() for receipt in self.receipts],
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
 
 class InvoiceItems(db.Model, SerializerMixin):
     __tablename__ = "invoice_items"
@@ -321,13 +340,13 @@ class InvoiceItems(db.Model, SerializerMixin):
     product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=True)
     item_description = db.Column(db.Text, nullable=False)
     quantity = db.Column(db.Float, nullable=False, default=1)
-    unit_price = db.Column(db.Float, nullable=False, default=0)
-    discount = db.Column(db.Float, default=0)
+    unit_price = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    discount = db.Column(db.Numeric(12, 2), default=0)
     vat_status = db.Column(db.String(20), nullable=False, default="vatable")
-    line_total = db.Column(db.Float, default=0)
+    line_total = db.Column(db.Numeric(12, 2), default=0)
 
     invoice = db.relationship("Invoices", back_populates="invoice_items")
-    product = db.relationship("Products", backref="invoice_items")
+    product = db.relationship("Products", back_populates="invoice_items")
 
     serialize_rules = ("-invoice.invoice_items", "-product.invoice_items")
 
@@ -338,11 +357,12 @@ class InvoiceItems(db.Model, SerializerMixin):
             "product_id": self.product_id,
             "item_description": self.item_description,
             "quantity": self.quantity,
-            "unit_price": self.unit_price,
-            "discount": self.discount,
+            "unit_price": money_value(self.unit_price),
+            "discount": money_value(self.discount),
             "vat_status": self.vat_status,
-            "line_total": self.line_total,
+            "line_total": money_value(self.line_total),
         }
+
 
 class Receipts(db.Model, SerializerMixin):
     __tablename__ = "receipts"
@@ -352,19 +372,16 @@ class Receipts(db.Model, SerializerMixin):
     receipt_date = db.Column(db.Date, default=date.today)
     customer_id = db.Column(db.Integer, db.ForeignKey("customers.id"), nullable=False)
     invoice_id = db.Column(db.Integer, db.ForeignKey("invoices.id"), nullable=True)
-    
-    payment_method = db.Column(db.String(50), nullable=False)  # cash, bank_transfer, cheque, mpesa
-    transaction_reference = db.Column(db.String(100), nullable=True)  # M-Pesa code, cheque number, etc.
-    amount_received = db.Column(db.Float, nullable=False)
-    outstanding_balance = db.Column(db.Float, default=0)
-    
+    payment_method = db.Column(db.String(50), nullable=False)
+    transaction_reference = db.Column(db.String(100), nullable=True)
+    amount_received = db.Column(db.Numeric(12, 2), nullable=False)
+    outstanding_balance = db.Column(db.Numeric(12, 2), default=0)
     received_by = db.Column(db.String(100), nullable=True)
     notes = db.Column(db.Text, nullable=True)
     deleted_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Relationships
-    customer = db.relationship("Customers", backref="receipts")
+    customer = db.relationship("Customers", back_populates="receipts")
     invoice = db.relationship("Invoices", back_populates="receipts")
 
     serialize_rules = ("-customer.receipts", "-invoice.receipts")
@@ -379,13 +396,14 @@ class Receipts(db.Model, SerializerMixin):
             "invoice_id": self.invoice_id,
             "payment_method": self.payment_method,
             "transaction_reference": self.transaction_reference,
-            "amount_received": self.amount_received,
-            "outstanding_balance": self.outstanding_balance,
+            "amount_received": money_value(self.amount_received),
+            "outstanding_balance": money_value(self.outstanding_balance),
             "received_by": self.received_by,
             "notes": self.notes,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
-    
+
+
 class Suppliers(db.Model, SerializerMixin):
     __tablename__ = "suppliers"
 
@@ -397,7 +415,7 @@ class Suppliers(db.Model, SerializerMixin):
     kra_pin = db.Column(db.String(50), nullable=True)
     physical_address = db.Column(db.Text, nullable=True)
     county = db.Column(db.String(100), nullable=True)
-    products_supplied = db.Column(db.Text, nullable=True)  # Comma-separated or JSON
+    products_supplied = db.Column(db.Text, nullable=True)
     outstanding_orders = db.Column(db.Integer, default=0)
     is_active = db.Column(db.Boolean, default=True)
     deleted_at = db.Column(db.DateTime, nullable=True)
@@ -422,7 +440,8 @@ class Suppliers(db.Model, SerializerMixin):
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
-    
+
+
 class PurchaseOrders(db.Model, SerializerMixin):
     __tablename__ = "purchase_orders"
 
@@ -432,8 +451,8 @@ class PurchaseOrders(db.Model, SerializerMixin):
     supplier_id = db.Column(db.Integer, db.ForeignKey("suppliers.id"), nullable=False)
     required_date = db.Column(db.Date, nullable=True)
     expected_delivery = db.Column(db.Date, nullable=True)
-    status = db.Column(db.String(50), default="open")  # open, partially_received, closed
-    total_amount = db.Column(db.Float, default=0)
+    status = db.Column(db.String(50), default="open")
+    total_amount = db.Column(db.Numeric(12, 2), default=0)
     notes = db.Column(db.Text, nullable=True)
     deleted_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -453,7 +472,7 @@ class PurchaseOrders(db.Model, SerializerMixin):
             "required_date": self.required_date.isoformat() if self.required_date else None,
             "expected_delivery": self.expected_delivery.isoformat() if self.expected_delivery else None,
             "status": self.status,
-            "total_amount": self.total_amount,
+            "total_amount": money_value(self.total_amount),
             "notes": self.notes,
             "items": [item.to_dict() for item in self.items],
             "created_at": self.created_at.isoformat() if self.created_at else None,
@@ -469,11 +488,11 @@ class PurchaseOrderItems(db.Model, SerializerMixin):
     item_description = db.Column(db.Text, nullable=False)
     quantity_ordered = db.Column(db.Float, nullable=False, default=1)
     quantity_received = db.Column(db.Float, default=0)
-    unit_price = db.Column(db.Float, nullable=False, default=0)
-    line_total = db.Column(db.Float, default=0)
+    unit_price = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    line_total = db.Column(db.Numeric(12, 2), default=0)
 
     purchase_order = db.relationship("PurchaseOrders", back_populates="items")
-    product = db.relationship("Products", backref="purchase_order_items")
+    product = db.relationship("Products", back_populates="purchase_order_items")
 
     serialize_rules = ("-purchase_order.items", "-product.purchase_order_items")
 
@@ -485,29 +504,29 @@ class PurchaseOrderItems(db.Model, SerializerMixin):
             "item_description": self.item_description,
             "quantity_ordered": self.quantity_ordered,
             "quantity_received": self.quantity_received,
-            "unit_price": self.unit_price,
-            "line_total": self.line_total,
+            "unit_price": money_value(self.unit_price),
+            "line_total": money_value(self.line_total),
         }
-    
+
 
 class StockTransactions(db.Model, SerializerMixin):
     __tablename__ = "stock_transactions"
 
     id = db.Column(db.Integer, primary_key=True)
-    transaction_type = db.Column(db.String(50), nullable=False)  # grn, adjustment, transfer, issue, return, count
+    transaction_type = db.Column(db.String(50), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=False)
-    reference_number = db.Column(db.String(100), nullable=True)  # GRN number, PO number, etc.
-    quantity_change = db.Column(db.Float, nullable=False)  # Positive for additions, negative for deductions
+    reference_number = db.Column(db.String(100), nullable=True)
+    quantity_change = db.Column(db.Float, nullable=False)
     quantity_before = db.Column(db.Float, default=0)
     quantity_after = db.Column(db.Float, default=0)
-    unit_cost = db.Column(db.Float, default=0)  # Cost per unit at time of transaction
+    unit_cost = db.Column(db.Numeric(12, 2), default=0)
     notes = db.Column(db.Text, nullable=True)
-    performed_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    performed_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     deleted_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    product = db.relationship("Products", backref="stock_transactions")
-    user = db.relationship("Users", backref="stock_transactions")
+    product = db.relationship("Products", back_populates="stock_transactions")
+    user = db.relationship("Users", back_populates="stock_transactions")
 
     serialize_rules = ("-product.stock_transactions", "-user.stock_transactions")
 
@@ -521,12 +540,13 @@ class StockTransactions(db.Model, SerializerMixin):
             "quantity_change": self.quantity_change,
             "quantity_before": self.quantity_before,
             "quantity_after": self.quantity_after,
-            "unit_cost": self.unit_cost,
+            "unit_cost": money_value(self.unit_cost),
             "notes": self.notes,
+            "performed_by_id": self.performed_by_id,
             "performed_by": self.user.name if self.user else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
-    
+
 
 class Projects(db.Model, SerializerMixin):
     __tablename__ = "projects"
@@ -535,21 +555,21 @@ class Projects(db.Model, SerializerMixin):
     project_name = db.Column(db.String(150), nullable=False)
     customer_id = db.Column(db.Integer, db.ForeignKey("customers.id"), nullable=False)
     location = db.Column(db.String(150), nullable=True)
-    contract_value = db.Column(db.Float, default=0)
+    contract_value = db.Column(db.Numeric(12, 2), default=0)
     start_date = db.Column(db.Date, nullable=True)
     end_date = db.Column(db.Date, nullable=True)
     assigned_engineer = db.Column(db.String(100), nullable=True)
-    assigned_technicians = db.Column(db.String(200), nullable=True)  # Comma-separated names
-    materials_consumed = db.Column(db.Float, default=0)  # Total cost of materials
-    invoices_raised = db.Column(db.Float, default=0)
-    payments_received = db.Column(db.Float, default=0)
-    profitability = db.Column(db.Float, default=0)
-    status = db.Column(db.String(50), default="planning")  # planning, active, completed
+    assigned_technicians = db.Column(db.String(200), nullable=True)
+    materials_consumed = db.Column(db.Numeric(12, 2), default=0)
+    invoices_raised = db.Column(db.Numeric(12, 2), default=0)
+    payments_received = db.Column(db.Numeric(12, 2), default=0)
+    profitability = db.Column(db.Numeric(12, 2), default=0)
+    status = db.Column(db.String(50), default="planning")
     notes = db.Column(db.Text, nullable=True)
     deleted_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    customer = db.relationship("Customers", backref="projects")
+    customer = db.relationship("Customers", back_populates="projects")
 
     serialize_rules = ("-customer.projects",)
 
@@ -560,16 +580,18 @@ class Projects(db.Model, SerializerMixin):
             "customer": self.customer.to_dict() if self.customer else None,
             "customer_id": self.customer_id,
             "location": self.location,
-            "contract_value": self.contract_value,
+            "contract_value": money_value(self.contract_value),
             "start_date": self.start_date.isoformat() if self.start_date else None,
             "end_date": self.end_date.isoformat() if self.end_date else None,
             "assigned_engineer": self.assigned_engineer,
             "assigned_technicians": self.assigned_technicians,
-            "materials_consumed": self.materials_consumed,
-            "invoices_raised": self.invoices_raised,
-            "payments_received": self.payments_received,
-            "profitability": self.profitability,
+            "materials_consumed": money_value(self.materials_consumed),
+            "invoices_raised": money_value(self.invoices_raised),
+            "payments_received": money_value(self.payments_received),
+            "profitability": money_value(self.profitability),
             "status": self.status,
             "notes": self.notes,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+        
