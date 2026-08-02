@@ -140,33 +140,33 @@ class CustomerResource(Resource):
         return {"message": "Customer deleted successfully!"}, 200
 
 
-# class CustomerDetail(Resource):
-#     @jwt_required()
-#     @sales_required
-#     def get(self, customer_id):
-#         customer = Customers.query.filter_by(id=customer_id, deleted_at=None).first()
+class CustomerDetail(Resource):
+    @jwt_required()
+    @sales_required
+    def get(self, customer_id):
+        customer = Customers.query.filter_by(id=customer_id, deleted_at=None).first()
 
-#         if not customer:
-#             return {"error": "Customer not found!"}, 404
+        if not customer:
+            return {"error": "Customer not found!"}, 404
 
-#         return {
-#             "customer": customer.to_dict(),
-#             "outstanding_balance": float(customer.outstanding_balance or 0),
-#             "quotations": [q.to_dict() for q in customer.quotations],
-#             "sales_orders": [so.to_dict() for so in customer.sales_orders],
-#             "invoices": [inv.to_dict() for inv in customer.invoices],
-#             "payments": [r.to_dict() for r in customer.receipts],
-#             "projects": [p.to_dict() for p in customer.projects],
-#             "stats": {
-#                 "total_quotations": len(customer.quotations),
-#                 "total_sales_orders": len(customer.sales_orders),
-#                 "total_invoices": len(customer.invoices),
-#                 "total_payments": len(customer.receipts),
-#                 "total_projects": len(customer.projects),
-#                 "total_spent": sum(float(inv.invoice_total or 0) for inv in customer.invoices),
-#                 "total_paid": sum(float(r.amount_received or 0) for r in customer.receipts),
-#             }
-#         }, 200
+        return {
+            "customer": customer.to_dict(),
+            "outstanding_balance": float(customer.outstanding_balance or 0),
+            "quotations": [q.to_dict() for q in customer.quotations],
+            "sales_orders": [so.to_dict() for so in customer.sales_orders],
+            "invoices": [inv.to_dict() for inv in customer.invoices],
+            "payments": [r.to_dict() for r in customer.receipts],
+            "projects": [p.to_dict() for p in customer.projects],
+            "stats": {
+                "total_quotations": len(customer.quotations),
+                "total_sales_orders": len(customer.sales_orders),
+                "total_invoices": len(customer.invoices),
+                "total_payments": len(customer.receipts),
+                "total_projects": len(customer.projects),
+                "total_spent": sum(float(inv.invoice_total or 0) for inv in customer.invoices),
+                "total_paid": sum(float(r.amount_received or 0) for r in customer.receipts),
+            }
+        }, 200
 
 
 # ==================== PRODUCT RESOURCES ====================
@@ -1295,5 +1295,3 @@ class ProjectResource(Resource):
         db.session.commit()
 
         return {"message": "Project deleted successfully!"}, 200
-
-        customerResource

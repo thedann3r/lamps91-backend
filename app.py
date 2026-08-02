@@ -21,13 +21,13 @@ from resources.crud import (
     PurchaseOrder, PurchaseOrderResource,
     StockTransaction, StockTransactionResource,
     Project, ProjectResource, 
-    # customerDetail
+    CustomerDetail
 )
 
 load_dotenv(override=True)
 
 app = Flask(__name__)
-app.config["SQLALCHEMY_DATABASE_URI"] =  'sqlite:///data.db'
+app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL", 'sqlite:///data.db')
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "default_secret_key")
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
@@ -47,7 +47,7 @@ def index():
 # customer endpoints
 api.add_resource(Customer, "/customers")
 api.add_resource(CustomerResource, "/customers/<int:customer_id>")
-# api.add_resource(CustomerDetail, "/customers/<int:customer_id>/details")
+api.add_resource(CustomerDetail, "/customers/<int:customer_id>/details")
 
 # Product endpoints
 api.add_resource(Product, "/products")
