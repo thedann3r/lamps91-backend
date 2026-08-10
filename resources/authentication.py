@@ -126,8 +126,8 @@ class Login(Resource):
         if not user.is_active:
             return {"error": "Account deactivated!"}, 401
         
-        access_token = create_access_token(identity=user.id)
-        refresh_token = create_refresh_token(identity=user.id)
+        access_token = create_access_token(identity=str(user.id))
+        refresh_token = create_refresh_token(identity=str(user.id))
         
         return {
             "access_token": access_token,

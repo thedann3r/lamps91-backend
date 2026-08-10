@@ -193,8 +193,8 @@ class Product(Resource):
         try:
             selling_price = float(data.get("selling_price"))
             buying_price = float(data.get("buying_price", 0))
-            current_stock = FloatingPointError(data.get("current_stock", 0))
-            reorder_level = FloatingPointError(data.get("reorder_level", 0))
+            current_stock = float(data.get("current_stock", 0))
+            reorder_level = float(data.get("reorder_level", 0))
 
         except ValueError:
             return {"error": "Prices and stock values must be valid numbers!"}, 400
@@ -313,7 +313,7 @@ class Quotation(Resource):
             site_location=clean_text(data.get("site_location")),
             terms_conditions=clean_text(data.get("terms_conditions")),
             authorized_by=clean_text(data.get("authorized_by")),
-            prepared_by_id=current_user_id,
+            prepared_by_id=int(current_user_id),
         )
 
         db.session.add(quotation)
@@ -1154,7 +1154,7 @@ class StockTransaction(Resource):
             quantity_after=quantity_after,
             unit_cost=float(data.get("unit_cost", product.buying_price or 0)),
             notes=clean_text(data.get("notes")),
-            performed_by_id=get_jwt_identity(),  # Automatically set to current user
+            performed_by_id=int(get_jwt_identity()),  # Automatically set to current user
         )
 
         db.session.add(transaction)

@@ -13,7 +13,7 @@ def role_required(allowed_roles):
         def wrapper(*args, **kwargs):
             # Get current user ID from JWT
             user_id = get_jwt_identity()
-            user = Users.query.get(user_id)
+            user = Users.query.get(int(user_id))    
             
             if not user:
                 return {"error": "User not found!"}, 404

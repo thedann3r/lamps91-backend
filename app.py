@@ -86,10 +86,10 @@ api.add_resource(Project, "/projects")
 api.add_resource(ProjectResource, "/projects/<int:project_id>")
 
 
-api.add_resource(Register, "/auth/register")
-api.add_resource(Login, "/auth/login")
-api.add_resource(RefreshToken, "/auth/refresh")
-api.add_resource(Logout, "/auth/logout")
+api.add_resource(Register, "/register")
+api.add_resource(Login, "/login")
+api.add_resource(RefreshToken, "/refresh")
+api.add_resource(Logout, "/logout")
 
 if __name__ == "__main__":
     app.run(debug = True)
