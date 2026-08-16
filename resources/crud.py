@@ -8,7 +8,6 @@ from resources.decorators import admin_required, finance_required, store_require
 VAT_RATE = 0.16
 VAT_EXEMPT_CATEGORIES = {"solar panels", "inverters", "batteries"}
 
-
 def clean_text(value):
     if value is None:
         return None
@@ -37,8 +36,13 @@ def calculate_quote_totals(quotation):
     vatable_total = 0
 
     for item in quotation.items:
-        gross_total = item.quantity * item.unit_price
-        item.line_total = gross_total - item.discount
+        # ✅ Convert Decimal to float before math
+        quantity = float(item.quantity)
+        unit_price = float(item.unit_price)
+        discount = float(item.discount)
+        
+        gross_total = quantity * unit_price
+        item.line_total = gross_total - discount
         sub_total += item.line_total
 
         if item.vat_status == "exempt":
@@ -500,8 +504,12 @@ def calculate_invoice_totals(invoice):
     vatable_total = 0
 
     for item in invoice.invoice_items:
-        gross_total = item.quantity * item.unit_price
-        item.line_total = gross_total - item.discount
+        quantity = float(item.quantity)
+        unit_price = float(item.unit_price)
+        discount = float(item.discount)
+        
+        gross_total = quantity * unit_price
+        item.line_total = gross_total - discount
         sub_total += item.line_total
 
         if item.vat_status == "exempt":
@@ -514,7 +522,7 @@ def calculate_invoice_totals(invoice):
     invoice.vatable_total = vatable_total
     invoice.vat_amount = vatable_total * VAT_RATE
     invoice.invoice_total = sub_total + invoice.vat_amount
-    invoice.balance_due = invoice.invoice_total - (invoice.amount_paid or 0)
+    invoice.balance_due = invoice.invoice_total - float(invoice.amount_paid or 0)
 
 # ==================== INVOICE RESOURCES ====================
 
