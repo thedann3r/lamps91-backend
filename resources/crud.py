@@ -722,8 +722,11 @@ class Receipt(Resource):
         receipts = Receipts.query.filter_by(deleted_at=None).all()
         return [receipt.to_dict() for receipt in receipts], 200
 
+    # @jwt_required()
+    # @finance_required  # Finance and admin can view invoices
+class Receipt(Resource):
     @jwt_required()
-    @finance_required  # Finance and admin can view invoices
+    @finance_required
     def post(self):
         data = request.get_json()
         required_fields = {"customer_id", "payment_method", "amount_received"}
@@ -766,15 +769,16 @@ class Receipt(Resource):
         if data.get("invoice_id"):
             invoice = Invoices.query.get(data.get("invoice_id"))
             if invoice:
-                invoice.amount_paid = (invoice.amount_paid or 0) + amount_received
-                invoice.balance_due = invoice.invoice_total - invoice.amount_paid
+                # ✅ Convert Decimal to float before math
+                invoice.amount_paid = float(invoice.amount_paid or 0) + amount_received
+                invoice.balance_due = float(invoice.invoice_total or 0) - float(invoice.amount_paid or 0)
                 if invoice.balance_due <= 0:
                     invoice.status = "paid"
                 db.session.commit()
 
         # Update customer outstanding balance
         if customer:
-            customer.outstanding_balance = (customer.outstanding_balance or 0) - amount_received
+            customer.outstanding_balance = float(customer.outstanding_balance or 0) - amount_received
             db.session.commit()
 
         return receipt.to_dict(), 201
