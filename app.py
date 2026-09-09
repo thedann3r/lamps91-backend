@@ -23,6 +23,13 @@ from resources.crud import (
     Project, ProjectResource, 
     CustomerDetail
 )
+from resources.reports import (
+    SalesReport,
+    VATReport,
+    OutstandingReport,
+    MonthlySalesReport,
+    DashboardStats
+)
 
 load_dotenv(override=True)
 
@@ -90,6 +97,12 @@ api.add_resource(Register, "/register")
 api.add_resource(Login, "/login")
 api.add_resource(RefreshToken, "/refresh")
 api.add_resource(Logout, "/logout")
+
+api.add_resource(SalesReport, "/reports/sales")
+api.add_resource(VATReport, "/reports/vat")
+api.add_resource(OutstandingReport, "/reports/outstanding")
+api.add_resource(MonthlySalesReport, "/reports/monthly-sales")
+api.add_resource(DashboardStats, "/dashboard")
 
 if __name__ == "__main__":
     app.run(debug = True)
