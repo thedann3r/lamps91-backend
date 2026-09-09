@@ -9,6 +9,8 @@ from flask_jwt_extended import JWTManager
 from models import db
 import os
 from datetime import timedelta
+from resources.pdf_routes import QuotationPDF, InvoicePDF, ReceiptPDF
+from resources.email_routes import SendQuotationEmail, SendInvoiceEmail, SendReceiptEmail
 from resources.authentication import Register, Login, RefreshToken, Logout
 from resources.crud import (    
     Customer, CustomerResource,
@@ -103,6 +105,14 @@ api.add_resource(VATReport, "/reports/vat")
 api.add_resource(OutstandingReport, "/reports/outstanding")
 api.add_resource(MonthlySalesReport, "/reports/monthly-sales")
 api.add_resource(DashboardStats, "/dashboard")
+
+api.add_resource(QuotationPDF, "/quotations/<int:quotation_id>/pdf")
+api.add_resource(InvoicePDF, "/invoices/<int:invoice_id>/pdf")
+api.add_resource(ReceiptPDF, "/receipts/<int:receipt_id>/pdf")
+
+api.add_resource(SendQuotationEmail, "/quotations/<int:quotation_id>/email")
+api.add_resource(SendInvoiceEmail, "/invoices/<int:invoice_id>/email")
+api.add_resource(SendReceiptEmail, "/receipts/<int:receipt_id>/email")
 
 if __name__ == "__main__":
     app.run(debug = True)

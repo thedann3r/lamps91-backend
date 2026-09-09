@@ -18,6 +18,7 @@ pyjwt = "*"
 flask-mail = "*"
 psycopg2-binary = "*"
 reportlab = "*"
+sendgrid = "*"
 
 [dev-packages]
 
