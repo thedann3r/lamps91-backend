@@ -33,6 +33,8 @@ from resources.reports import (
     DashboardStats
 )
 
+from resources.KRA_reports import KRAVATReport, KRAVATReportCSV, KRAVATReportExcel
+
 load_dotenv(override=True)
 
 app = Flask(__name__)
@@ -113,6 +115,10 @@ api.add_resource(ReceiptPDF, "/receipts/<int:receipt_id>/pdf")
 api.add_resource(SendQuotationEmail, "/quotations/<int:quotation_id>/email")
 api.add_resource(SendInvoiceEmail, "/invoices/<int:invoice_id>/email")
 api.add_resource(SendReceiptEmail, "/receipts/<int:receipt_id>/email")
+
+api.add_resource(KRAVATReport, "/reports/kra/vat")
+api.add_resource(KRAVATReportCSV, "/reports/kra/vat/csv")
+api.add_resource(KRAVATReportExcel, "/reports/kra/vat/excel")
 
 if __name__ == "__main__":
     app.run(debug = True)
