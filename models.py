@@ -690,3 +690,43 @@ class CompanySettings(db.Model, SerializerMixin):
             "default_terms": self.default_terms,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+
+class ClientLPO(db.Model, SerializerMixin):
+    __tablename__ = "client_lpos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    lpo_number = db.Column(db.String(50), unique=True, nullable=False)
+    customer_id = db.Column(db.Integer, db.ForeignKey("customers.id"), nullable=False)
+    quotation_id = db.Column(db.Integer, db.ForeignKey("quotations.id"), nullable=False, unique=True)
+    lpo_date = db.Column(db.Date, default=date.today)
+    lpo_value = db.Column(db.Numeric(12, 2), default=0)
+    lpo_document_url = db.Column(db.String(255), nullable=True)
+    status = db.Column(db.String(50), default="pending")  # pending, approved, rejected
+    notes = db.Column(db.Text, nullable=True)
+    approved_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    customer = db.relationship("Customers", backref="client_lpos")
+    quotation = db.relationship("Quotations", backref="client_lpo", uselist=False)
+    approved_by = db.relationship("Users", backref="approved_lpos")
+
+    serialize_rules = ("-customer.client_lpos", "-quotation.client_lpo", "-approved_by.approved_lpos")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "lpo_number": self.lpo_number,
+            "customer_id": self.customer_id,
+            "quotation_id": self.quotation_id,
+            "lpo_date": self.lpo_date.isoformat() if self.lpo_date else None,
+            "lpo_value": float(self.lpo_value or 0),
+            "lpo_document_url": self.lpo_document_url,
+            "status": self.status,
+            "notes": self.notes,
+            "approved_by_id": self.approved_by_id,
+            "customer": self.customer.to_dict() if self.customer else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }

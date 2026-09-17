@@ -43,7 +43,17 @@ from resources.vat_settings import (
 )
 
 from resources.company_settings import CompanySettingsResource, CompanySettingsReset
+
 from resources.whatsapp import SendQuotationWhatsApp, SendInvoiceWhatsApp, SendReceiptWhatsApp
+
+from resources.client_lpos import (
+    ClientLPOList, 
+    ClientLPOResource,
+    ClientLPOApprove,
+    ClientLPOUpload,
+    ClientLPOGeneratePDF,
+    ClientLPOConvertToInvoice
+)rce
 
 load_dotenv(override=True)
 
@@ -141,6 +151,13 @@ api.add_resource(CompanySettingsReset, "/company-settings/reset")
 api.add_resource(SendQuotationWhatsApp, "/quotations/<int:quotation_id>/whatsapp")
 api.add_resource(SendInvoiceWhatsApp, "/invoices/<int:invoice_id>/whatsapp")
 api.add_resource(SendReceiptWhatsApp, "/receipts/<int:receipt_id>/whatsapp")
+
+api.add_resource(ClientLPOList, "/client-lpos")
+api.add_resource(ClientLPOResource, "/client-lpos/<int:lpo_id>")
+api.add_resource(ClientLPOApprove, "/client-lpos/<int:lpo_id>/approve")
+api.add_resource(ClientLPOUpload, "/client-lpos/<int:lpo_id>/upload")
+api.add_resource(ClientLPOGeneratePDF, "/client-lpos/<int:lpo_id>/pdf")
+api.add_resource(ClientLPOConvertToInvoice, "/client-lpos/<int:lpo_id>/convert-to-invoice")
 
 if __name__ == "__main__":
     app.run(debug = True)

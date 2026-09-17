@@ -562,3 +562,62 @@ def generate_receipt_pdf(receipt, company_info=None):
     doc.build(elements)
     buffer.seek(0)
     return buffer
+
+def generate_lpo_pdf(lpo, company_info=None):
+    """Generate LPO PDF for client to sign"""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=20*mm, leftMargin=20*mm, topMargin=20*mm, bottomMargin=20*mm)
+    
+    styles = getSampleStyleSheet()
+    heading_style = styles['Heading2']
+    normal_style = styles['Normal']
+    
+    company = company_info or get_company_info()
+    primary = colors.HexColor(company.get("primary_color", "#1E3A8A"))
+    secondary = colors.HexColor(company.get("secondary_color", "#F59E0B"))
+    
+    elements = []
+    add_company_header(elements, company)
+    add_document_title(elements, "LOCAL PURCHASE ORDER (LPO)", company.get("primary_color", "#1E3A8A"))
+    
+    # LPO details
+    elements.append(Paragraph(f"<b>LPO No:</b> {lpo.lpo_number}", normal_style))
+    elements.append(Paragraph(f"<b>Date:</b> {lpo.lpo_date or datetime.now().date()}", normal_style))
+    elements.append(Paragraph(f"<b>Quotation Ref:</b> {lpo.quotation.quote_number if lpo.quotation else 'N/A'}", normal_style))
+    elements.append(Paragraph(f"<b>LPO Value:</b> KES {float(lpo.lpo_value or 0):,.2f}", normal_style))
+    elements.append(Spacer(1, 5*mm))
+    
+    # Customer details
+    customer = lpo.customer
+    elements.append(Paragraph("Client Details:", heading_style))
+    elements.append(Paragraph(f"<b>Name:</b> {customer.customer_name if customer else 'N/A'}", normal_style))
+    elements.append(Paragraph(f"<b>Contact:</b> {customer.contact_person if customer else 'N/A'}", normal_style))
+    elements.append(Paragraph(f"<b>Phone:</b> {customer.phone if customer else 'N/A'}", normal_style))
+    elements.append(Paragraph(f"<b>KRA PIN:</b> {customer.kra_pin if customer else 'N/A'}", normal_style))
+    elements.append(Spacer(1, 10*mm))
+    
+    # Client signature area
+    signature_style = ParagraphStyle('Signature', fontSize=10, fontName='Helvetica-Bold')
+    elements.append(Paragraph("CLIENT AUTHORIZATION", signature_style))
+    elements.append(Spacer(1, 3*mm))
+    elements.append(Paragraph("I, the undersigned, authorize LAMPS91 Energies Ltd to proceed with the above purchase order.", normal_style))
+    elements.append(Spacer(1, 15*mm))
+    
+    # Signature lines
+    sig_data = [
+        ["Client Name:", "_______________________________"],
+        ["Signature:", "_______________________________"],
+        ["Date:", "_______________________________"],
+        ["Company Stamp:", "_______________________________"],
+    ]
+    sig_table = Table(sig_data, colWidths=[50*mm, 120*mm])
+    sig_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 15),
+    ]))
+    elements.append(sig_table)
+    
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
