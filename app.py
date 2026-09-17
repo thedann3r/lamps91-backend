@@ -35,6 +35,13 @@ from resources.reports import (
 
 from resources.KRA_reports import KRAVATReport, KRAVATReportCSV, KRAVATReportExcel
 
+from resources.vat_settings import (
+    VATSettingsList,
+    VATSettingsDetail,
+    VATSettingsReset,
+    VATSettingsCurrent
+)
+
 load_dotenv(override=True)
 
 app = Flask(__name__)
@@ -119,6 +126,11 @@ api.add_resource(SendReceiptEmail, "/receipts/<int:receipt_id>/email")
 api.add_resource(KRAVATReport, "/reports/kra/vat")
 api.add_resource(KRAVATReportCSV, "/reports/kra/vat/csv")
 api.add_resource(KRAVATReportExcel, "/reports/kra/vat/excel")
+
+api.add_resource(VATSettingsList, "/vat-settings")
+api.add_resource(VATSettingsDetail, "/vat-settings/<int:setting_id>")
+api.add_resource(VATSettingsReset, "/vat-settings/reset")
+api.add_resource(VATSettingsCurrent, "/vat-settings/current")
 
 if __name__ == "__main__":
     app.run(debug = True)

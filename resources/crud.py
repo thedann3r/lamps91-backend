@@ -2,11 +2,11 @@ from datetime import datetime
 from flask import request
 from flask_restful import Resource
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models import db, Customers, Products, Quotations, QuotationItems, SalesOrders, Invoices, InvoiceItems, Receipts, Suppliers, PurchaseOrders, PurchaseOrderItems, StockTransactions, Projects
+from models import db, Customers, Products, Quotations, QuotationItems, SalesOrders, Invoices, InvoiceItems, Receipts, Suppliers, PurchaseOrders, PurchaseOrderItems, StockTransactions, Projects, VATSettings
 from resources.decorators import admin_required, finance_required, store_required, sales_required, engineer_required
 
-VAT_RATE = 0.16
-VAT_EXEMPT_CATEGORIES = {"solar panels", "inverters", "batteries"}
+# VAT_RATE = 0.16
+# VAT_EXEMPT_CATEGORIES = {"solar panels", "inverters", "batteries"}
 
 def clean_text(value):
     if value is None:
@@ -20,23 +20,60 @@ def parse_date(value):
     return datetime.strptime(value, "%Y-%m-%d").date()
 
 
+def get_vat_settings():
+    """Get current VAT settings from database"""
+    settings = VATSettings.query.filter_by(deleted_at=None).all()
+    
+    if not settings:
+        # Fallback to defaults if no settings exist
+        return {
+            "vat_rate": 0.16,
+            "exempt_categories": {"solar panels", "inverters", "batteries"}
+        }
+    
+    exempt_categories = {s.category_name for s in settings if s.is_exempt}
+    vat_rates = [s.vat_rate for s in settings if not s.is_exempt]
+    current_vat_rate = max(set(vat_rates), key=vat_rates.count) if vat_rates else 0.16
+    
+    return {
+        "vat_rate": current_vat_rate,
+        "exempt_categories": exempt_categories
+    }
+
+
 def get_vat_status(category, vat_status=None):
+    """Determine VAT status based on database settings"""
     if vat_status:
         return clean_text(vat_status).lower()
-
-    if category and clean_text(category).lower() in VAT_EXEMPT_CATEGORIES:
-        return "exempt"
-
+    
+    if not category:
+        return "vatable"
+    
+    vat_settings = get_vat_settings()
+    category_lower = clean_text(category).lower()
+    
+    # Check if category is in exempt list
+    for exempt_cat in vat_settings["exempt_categories"]:
+        if exempt_cat in category_lower or category_lower in exempt_cat:
+            return "exempt"
+    
     return "vatable"
 
 
+def get_current_vat_rate():
+    """Get current VAT rate from database"""
+    vat_settings = get_vat_settings()
+    return vat_settings["vat_rate"]
+
+
 def calculate_quote_totals(quotation):
+    """Calculate quotation totals with dynamic VAT rate"""
     sub_total = 0
     vat_exempt_total = 0
     vatable_total = 0
+    vat_rate = get_current_vat_rate()  # ✅ Dynamic from database
 
     for item in quotation.items:
-        # ✅ Convert Decimal to float before math
         quantity = float(item.quantity)
         unit_price = float(item.unit_price)
         discount = float(item.discount)
@@ -53,8 +90,37 @@ def calculate_quote_totals(quotation):
     quotation.sub_total = sub_total
     quotation.vat_exempt_total = vat_exempt_total
     quotation.vatable_total = vatable_total
-    quotation.vat_amount = vatable_total * VAT_RATE
+    quotation.vat_amount = vatable_total * vat_rate  # ✅ Dynamic rate
     quotation.grand_total = sub_total + quotation.vat_amount
+
+
+def calculate_invoice_totals(invoice):
+    """Calculate invoice totals with dynamic VAT rate"""
+    sub_total = 0
+    vat_exempt_total = 0
+    vatable_total = 0
+    vat_rate = get_current_vat_rate()  # ✅ Dynamic from database
+
+    for item in invoice.invoice_items:
+        quantity = float(item.quantity)
+        unit_price = float(item.unit_price)
+        discount = float(item.discount)
+        
+        gross_total = quantity * unit_price
+        item.line_total = gross_total - discount
+        sub_total += item.line_total
+
+        if item.vat_status == "exempt":
+            vat_exempt_total += item.line_total
+        else:
+            vatable_total += item.line_total
+
+    invoice.sub_total = sub_total
+    invoice.vat_exempt_total = vat_exempt_total
+    invoice.vatable_total = vatable_total
+    invoice.vat_amount = vatable_total * vat_rate  # ✅ Dynamic rate
+    invoice.invoice_total = sub_total + invoice.vat_amount
+    invoice.balance_due = invoice.invoice_total - float(invoice.amount_paid or 0)
 
 
 # ==================== CUSTOMER RESOURCES ====================
@@ -1307,3 +1373,4 @@ class ProjectResource(Resource):
         db.session.commit()
 
         return {"message": "Project deleted successfully!"}, 200
+

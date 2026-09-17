@@ -594,4 +594,32 @@ class Projects(db.Model, SerializerMixin):
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
-        
+
+class VATSettings(db.Model, SerializerMixin):
+    __tablename__ = "vat_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    category_name = db.Column(db.String(100), unique=True, nullable=False)
+    is_exempt = db.Column(db.Boolean, default=False)
+    vat_rate = db.Column(db.Float, default=0.16)
+    description = db.Column(db.Text, nullable=True)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    updated_by = db.relationship("Users", backref="vat_updates")
+
+    serialize_rules = ("-updated_by.vat_updates",)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "category_name": self.category_name,
+            "is_exempt": self.is_exempt,
+            "vat_rate": self.vat_rate,
+            "description": self.description,
+            "updated_by_id": self.updated_by_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
