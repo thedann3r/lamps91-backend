@@ -42,6 +42,9 @@ from resources.vat_settings import (
     VATSettingsCurrent
 )
 
+from resources.company_settings import CompanySettingsResource, CompanySettingsReset
+from resources.whatsapp import SendQuotationWhatsApp, SendInvoiceWhatsApp, SendReceiptWhatsApp
+
 load_dotenv(override=True)
 
 app = Flask(__name__)
@@ -131,6 +134,13 @@ api.add_resource(VATSettingsList, "/vat-settings")
 api.add_resource(VATSettingsDetail, "/vat-settings/<int:setting_id>")
 api.add_resource(VATSettingsReset, "/vat-settings/reset")
 api.add_resource(VATSettingsCurrent, "/vat-settings/current")
+
+api.add_resource(CompanySettingsResource, "/company-settings")
+api.add_resource(CompanySettingsReset, "/company-settings/reset")
+
+api.add_resource(SendQuotationWhatsApp, "/quotations/<int:quotation_id>/whatsapp")
+api.add_resource(SendInvoiceWhatsApp, "/invoices/<int:invoice_id>/whatsapp")
+api.add_resource(SendReceiptWhatsApp, "/receipts/<int:receipt_id>/whatsapp")
 
 if __name__ == "__main__":
     app.run(debug = True)

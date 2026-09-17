@@ -623,3 +623,70 @@ class VATSettings(db.Model, SerializerMixin):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+    
+class CompanySettings(db.Model, SerializerMixin):
+    __tablename__ = "company_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_name = db.Column(db.String(150), nullable=False, default="LAMPS91 Energies Ltd")
+    tagline = db.Column(db.String(200), nullable=True)
+    email = db.Column(db.String(100), nullable=True)
+    phone = db.Column(db.String(50), nullable=True)
+    whatsapp_number = db.Column(db.String(50), nullable=True)
+    physical_address = db.Column(db.Text, nullable=True)
+    postal_address = db.Column(db.String(100), nullable=True)
+    kra_pin = db.Column(db.String(50), nullable=True)
+    website = db.Column(db.String(100), nullable=True)
+    logo_url = db.Column(db.String(255), nullable=True)
+    
+    # Brand colors (hex codes)
+    primary_color = db.Column(db.String(20), default="#1E3A8A")  # Blue
+    secondary_color = db.Column(db.String(20), default="#F59E0B")  # Gold
+    text_color = db.Column(db.String(20), default="#000000")
+    
+    # Bank details for invoices
+    bank_name = db.Column(db.String(100), nullable=True)
+    bank_account_name = db.Column(db.String(100), nullable=True)
+    bank_account_number = db.Column(db.String(50), nullable=True)
+    bank_branch = db.Column(db.String(100), nullable=True)
+    mpesa_paybill = db.Column(db.String(50), nullable=True)
+    mpesa_account = db.Column(db.String(50), nullable=True)
+    
+    # Document settings
+    quotation_validity_days = db.Column(db.Integer, default=30)
+    invoice_due_days = db.Column(db.Integer, default=30)
+    default_terms = db.Column(db.Text, nullable=True)
+    
+    updated_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    updated_by = db.relationship("Users", backref="company_settings_updates")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "company_name": self.company_name,
+            "tagline": self.tagline,
+            "email": self.email,
+            "phone": self.phone,
+            "whatsapp_number": self.whatsapp_number,
+            "physical_address": self.physical_address,
+            "postal_address": self.postal_address,
+            "kra_pin": self.kra_pin,
+            "website": self.website,
+            "logo_url": self.logo_url,
+            "primary_color": self.primary_color,
+            "secondary_color": self.secondary_color,
+            "text_color": self.text_color,
+            "bank_name": self.bank_name,
+            "bank_account_name": self.bank_account_name,
+            "bank_account_number": self.bank_account_number,
+            "bank_branch": self.bank_branch,
+            "mpesa_paybill": self.mpesa_paybill,
+            "mpesa_account": self.mpesa_account,
+            "quotation_validity_days": self.quotation_validity_days,
+            "invoice_due_days": self.invoice_due_days,
+            "default_terms": self.default_terms,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
