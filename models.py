@@ -25,11 +25,23 @@ class Users(db.Model, SerializerMixin):
 
     quotations = db.relationship("Quotations", back_populates="prepared_by", lazy=True)
     stock_transactions = db.relationship("StockTransactions", back_populates="user", lazy=True)
+    requisitions = db.relationship("Requisitions", foreign_keys="Requisitions.requested_by_id", back_populates="requested_by", lazy=True)
+    approved_requisitions = db.relationship("Requisitions", foreign_keys="Requisitions.approved_by_id", back_populates="approved_by", lazy=True)
+    approved_lpos = db.relationship("ClientLPO", back_populates="approved_by", lazy=True)
+    vat_updates = db.relationship("VATSettings", back_populates="updated_by", lazy=True)
+    company_settings_updates = db.relationship("CompanySettings", back_populates="updated_by", lazy=True)
+    supplier_payments_made = db.relationship("SupplierPayments", back_populates="paid_by", lazy=True)
 
     serialize_rules = (
         "-password",
         "-quotations.prepared_by",
         "-stock_transactions.user",
+        "-requisitions.requested_by",
+        "-approved_requisitions.approved_by",
+        "-approved_lpos.approved_by",
+        "-vat_updates.updated_by",
+        "-company_settings_updates.updated_by",
+        "-supplier_payments_made.paid_by",
     )
 
     def to_dict(self):
@@ -64,6 +76,7 @@ class Customers(db.Model, SerializerMixin):
     invoices = db.relationship("Invoices", back_populates="customer", lazy=True)
     receipts = db.relationship("Receipts", back_populates="customer", lazy=True)
     projects = db.relationship("Projects", back_populates="customer", lazy=True)
+    client_lpos = db.relationship("ClientLPO", back_populates="customer", lazy=True)
 
     serialize_rules = (
         "-quotations.customer",
@@ -71,6 +84,7 @@ class Customers(db.Model, SerializerMixin):
         "-invoices.customer",
         "-receipts.customer",
         "-projects.customer",
+        "-client_lpos.customer",
     )
 
     def to_dict(self):
@@ -110,12 +124,16 @@ class Products(db.Model, SerializerMixin):
     invoice_items = db.relationship("InvoiceItems", back_populates="product", lazy=True)
     purchase_order_items = db.relationship("PurchaseOrderItems", back_populates="product", lazy=True)
     stock_transactions = db.relationship("StockTransactions", back_populates="product", lazy=True)
+    requisition_items = db.relationship("RequisitionItems", back_populates="product", lazy=True)
+    supplier_invoice_items = db.relationship("SupplierInvoiceItems", back_populates="product", lazy=True)
 
     serialize_rules = (
         "-quotation_items.product",
         "-invoice_items.product",
         "-purchase_order_items.product",
         "-stock_transactions.product",
+        "-requisition_items.product",
+        "-supplier_invoice_items.product",  
     )
 
     def to_dict(self):
@@ -162,6 +180,7 @@ class Quotations(db.Model, SerializerMixin):
     items = db.relationship("QuotationItems", back_populates="quotation", lazy=True, cascade="all, delete-orphan")
     sales_order = db.relationship("SalesOrders", back_populates="quotation", uselist=False)
     invoice = db.relationship("Invoices", back_populates="quotation", uselist=False)
+    client_lpo = db.relationship("ClientLPO", back_populates="quotation", uselist=False)
 
     serialize_rules = (
         "-customer.quotations",
@@ -169,6 +188,7 @@ class Quotations(db.Model, SerializerMixin):
         "-items.quotation",
         "-sales_order.quotation",
         "-invoice.quotation",
+        "-client_lpo.quotation",
     )
 
     def to_dict(self):
@@ -422,8 +442,14 @@ class Suppliers(db.Model, SerializerMixin):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     purchase_orders = db.relationship("PurchaseOrders", back_populates="supplier", lazy=True)
+    supplier_invoices = db.relationship("SupplierInvoices", back_populates="supplier", lazy=True)
+    supplier_payments = db.relationship("SupplierPayments", back_populates="supplier", lazy=True)
 
-    serialize_rules = ("-purchase_orders.supplier",)
+    serialize_rules = (
+        "-purchase_orders.supplier",
+        "-supplier_invoices.supplier",
+        "-supplier_payments.supplier",
+    )
 
     def to_dict(self):
         return {
@@ -459,8 +485,15 @@ class PurchaseOrders(db.Model, SerializerMixin):
 
     supplier = db.relationship("Suppliers", back_populates="purchase_orders")
     items = db.relationship("PurchaseOrderItems", back_populates="purchase_order", lazy=True, cascade="all, delete-orphan")
+    requisition = db.relationship("Requisitions", back_populates="purchase_order", uselist=False)
+    supplier_invoice = db.relationship("SupplierInvoices", back_populates="purchase_order", uselist=False)
 
-    serialize_rules = ("-supplier.purchase_orders", "-items.purchase_order")
+    serialize_rules = (
+        "-supplier.purchase_orders",
+        "-items.purchase_order",
+        "-requisition.purchase_order",
+        "-supplier_invoice.purchase_order",
+    )
 
     def to_dict(self):
         return {
@@ -608,7 +641,7 @@ class VATSettings(db.Model, SerializerMixin):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    updated_by = db.relationship("Users", backref="vat_updates")
+    updated_by = db.relationship("Users", back_populates="vat_updates")
 
     serialize_rules = ("-updated_by.vat_updates",)
 
@@ -661,7 +694,7 @@ class CompanySettings(db.Model, SerializerMixin):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    updated_by = db.relationship("Users", backref="company_settings_updates")
+    updated_by = db.relationship("Users", back_populates="company_settings_updates")
 
     def to_dict(self):
         return {
@@ -709,9 +742,9 @@ class ClientLPO(db.Model, SerializerMixin):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    customer = db.relationship("Customers", backref="client_lpos")
-    quotation = db.relationship("Quotations", backref="client_lpo", uselist=False)
-    approved_by = db.relationship("Users", backref="approved_lpos")
+    customer = db.relationship("Customers", back_populates="client_lpos")
+    quotation = db.relationship("Quotations", back_populates="client_lpo", uselist=False)
+    approved_by = db.relationship("Users", back_populates="approved_lpos")
 
     serialize_rules = ("-customer.client_lpos", "-quotation.client_lpo", "-approved_by.approved_lpos")
 
@@ -748,9 +781,9 @@ class Requisitions(db.Model, SerializerMixin):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    requested_by = db.relationship("Users", foreign_keys=[requested_by_id], backref="requisitions")
-    approved_by = db.relationship("Users", foreign_keys=[approved_by_id], backref="approved_requisitions")
-    purchase_order = db.relationship("PurchaseOrders", backref="requisition", uselist=False)
+    requested_by = db.relationship("Users", foreign_keys=[requested_by_id], back_populates="requisitions")
+    approved_by = db.relationship("Users", foreign_keys=[approved_by_id], back_populates="approved_requisitions")
+    purchase_order = db.relationship("PurchaseOrders", back_populates="requisition", uselist=False)
     items = db.relationship("RequisitionItems", back_populates="requisition", lazy=True, cascade="all, delete-orphan")
 
     serialize_rules = (
@@ -792,7 +825,7 @@ class RequisitionItems(db.Model, SerializerMixin):
 
     # Relationships
     requisition = db.relationship("Requisitions", back_populates="items")
-    product = db.relationship("Products", backref="requisition_items")
+    product = db.relationship("Products", back_populates="requisition_items")
 
     serialize_rules = ("-requisition.items", "-product.requisition_items")
 
@@ -832,8 +865,8 @@ class SupplierInvoices(db.Model, SerializerMixin):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    supplier = db.relationship("Suppliers", backref="supplier_invoices")
-    purchase_order = db.relationship("PurchaseOrders", backref="supplier_invoice", uselist=False)
+    supplier = db.relationship("Suppliers", back_populates="supplier_invoices")
+    purchase_order = db.relationship("PurchaseOrders", back_populates="supplier_invoice", uselist=False)
     items = db.relationship("SupplierInvoiceItems", back_populates="invoice", lazy=True, cascade="all, delete-orphan")
     payments = db.relationship("SupplierPayments", back_populates="supplier_invoice", lazy=True, cascade="all, delete-orphan")
 
@@ -881,7 +914,7 @@ class SupplierInvoiceItems(db.Model, SerializerMixin):
 
     # Relationships
     invoice = db.relationship("SupplierInvoices", back_populates="items")
-    product = db.relationship("Products", backref="supplier_invoice_items")
+    product = db.relationship("Products", back_populates="supplier_invoice_items")
 
     serialize_rules = ("-invoice.items", "-product.supplier_invoice_items")
 
@@ -918,8 +951,8 @@ class SupplierPayments(db.Model, SerializerMixin):
 
     # Relationships
     supplier_invoice = db.relationship("SupplierInvoices", back_populates="payments")
-    supplier = db.relationship("Suppliers", backref="supplier_payments")
-    paid_by = db.relationship("Users", backref="supplier_payments_made")
+    supplier = db.relationship("Suppliers", back_populates="supplier_payments")
+    paid_by = db.relationship("Users", back_populates="supplier_payments_made")
 
     serialize_rules = ("-supplier_invoice.payments", "-supplier.supplier_payments", "-paid_by.supplier_payments_made")
 
