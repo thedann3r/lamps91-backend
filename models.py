@@ -808,3 +808,134 @@ class RequisitionItems(db.Model, SerializerMixin):
             "line_total": float(self.line_total or 0),
             "notes": self.notes,
         }
+
+
+class SupplierInvoices(db.Model, SerializerMixin):
+    __tablename__ = "supplier_invoices"
+
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_number = db.Column(db.String(50), unique=True, nullable=False)  # Supplier's invoice number
+    supplier_id = db.Column(db.Integer, db.ForeignKey("suppliers.id"), nullable=False)
+    purchase_order_id = db.Column(db.Integer, db.ForeignKey("purchase_orders.id"), nullable=True)
+    invoice_date = db.Column(db.Date, default=date.today)
+    due_date = db.Column(db.Date, nullable=True)
+    reference = db.Column(db.String(100), nullable=True)
+    sub_total = db.Column(db.Numeric(12, 2), default=0)
+    vat_amount = db.Column(db.Numeric(12, 2), default=0)
+    invoice_total = db.Column(db.Numeric(12, 2), default=0)
+    amount_paid = db.Column(db.Numeric(12, 2), default=0)
+    balance_due = db.Column(db.Numeric(12, 2), default=0)
+    status = db.Column(db.String(50), default="pending")  # pending, partial_paid, paid
+    notes = db.Column(db.Text, nullable=True)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    supplier = db.relationship("Suppliers", backref="supplier_invoices")
+    purchase_order = db.relationship("PurchaseOrders", backref="supplier_invoice", uselist=False)
+    items = db.relationship("SupplierInvoiceItems", back_populates="invoice", lazy=True, cascade="all, delete-orphan")
+    payments = db.relationship("SupplierPayments", back_populates="supplier_invoice", lazy=True, cascade="all, delete-orphan")
+
+    serialize_rules = (
+        "-supplier.supplier_invoices",
+        "-purchase_order.supplier_invoice",
+        "-items.invoice",
+        "-payments.supplier_invoice",
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "invoice_number": self.invoice_number,
+            "supplier_id": self.supplier_id,
+            "supplier_name": self.supplier.supplier_name if self.supplier else None,
+            "purchase_order_id": self.purchase_order_id,
+            "invoice_date": self.invoice_date.isoformat() if self.invoice_date else None,
+            "due_date": self.due_date.isoformat() if self.due_date else None,
+            "reference": self.reference,
+            "sub_total": float(self.sub_total or 0),
+            "vat_amount": float(self.vat_amount or 0),
+            "invoice_total": float(self.invoice_total or 0),
+            "amount_paid": float(self.amount_paid or 0),
+            "balance_due": float(self.balance_due or 0),
+            "status": self.status,
+            "notes": self.notes,
+            "items": [item.to_dict() for item in self.items],
+            "payments": [p.to_dict() for p in self.payments],
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class SupplierInvoiceItems(db.Model, SerializerMixin):
+    __tablename__ = "supplier_invoice_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    supplier_invoice_id = db.Column(db.Integer, db.ForeignKey("supplier_invoices.id"), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=True)
+    item_description = db.Column(db.Text, nullable=False)
+    quantity = db.Column(db.Float, nullable=False, default=1)
+    unit_price = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    vat_status = db.Column(db.String(20), default="vatable")  # vatable or exempt
+    line_total = db.Column(db.Numeric(12, 2), default=0)
+
+    # Relationships
+    invoice = db.relationship("SupplierInvoices", back_populates="items")
+    product = db.relationship("Products", backref="supplier_invoice_items")
+
+    serialize_rules = ("-invoice.items", "-product.supplier_invoice_items")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "supplier_invoice_id": self.supplier_invoice_id,
+            "product_id": self.product_id,
+            "product_name": self.product.product_name if self.product else None,
+            "item_description": self.item_description,
+            "quantity": float(self.quantity or 0),
+            "unit_price": float(self.unit_price or 0),
+            "vat_status": self.vat_status,
+            "line_total": float(self.line_total or 0),
+        }
+
+
+class SupplierPayments(db.Model, SerializerMixin):
+    __tablename__ = "supplier_payments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    payment_number = db.Column(db.String(50), unique=True, nullable=False)
+    supplier_invoice_id = db.Column(db.Integer, db.ForeignKey("supplier_invoices.id"), nullable=False)
+    supplier_id = db.Column(db.Integer, db.ForeignKey("suppliers.id"), nullable=False)
+    payment_date = db.Column(db.Date, default=date.today)
+    payment_method = db.Column(db.String(50), nullable=False)  # cash, bank_transfer, cheque, mpesa
+    transaction_reference = db.Column(db.String(100), nullable=True)
+    amount_paid = db.Column(db.Numeric(12, 2), nullable=False)
+    balance_due = db.Column(db.Numeric(12, 2), default=0)
+    paid_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    supplier_invoice = db.relationship("SupplierInvoices", back_populates="payments")
+    supplier = db.relationship("Suppliers", backref="supplier_payments")
+    paid_by = db.relationship("Users", backref="supplier_payments_made")
+
+    serialize_rules = ("-supplier_invoice.payments", "-supplier.supplier_payments", "-paid_by.supplier_payments_made")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "payment_number": self.payment_number,
+            "supplier_invoice_id": self.supplier_invoice_id,
+            "supplier_id": self.supplier_id,
+            "payment_date": self.payment_date.isoformat() if self.payment_date else None,
+            "payment_method": self.payment_method,
+            "transaction_reference": self.transaction_reference,
+            "amount_paid": float(self.amount_paid or 0),
+            "balance_due": float(self.balance_due or 0),
+            "paid_by_id": self.paid_by_id,
+            "paid_by_name": self.paid_by.name if self.paid_by else None,
+            "notes": self.notes,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }

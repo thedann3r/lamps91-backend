@@ -702,3 +702,116 @@ def generate_requisition_pdf(requisition, company_info=None):
     doc.build(elements)
     buffer.seek(0)
     return buffer
+
+def generate_supplier_invoice_pdf(invoice, company_info=None):
+    """Generate branded PDF for a supplier invoice"""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=20*mm, leftMargin=20*mm, topMargin=20*mm, bottomMargin=20*mm)
+    
+    styles = getSampleStyleSheet()
+    heading_style = styles['Heading2']
+    normal_style = styles['Normal']
+    
+    company = company_info or get_company_info()
+    primary = colors.HexColor(company.get("primary_color", "#1E3A8A"))
+    secondary = colors.HexColor(company.get("secondary_color", "#F59E0B"))
+    
+    elements = []
+    add_company_header(elements, company)
+    add_document_title(elements, "SUPPLIER INVOICE", company.get("primary_color", "#1E3A8A"))
+    
+    # Invoice details
+    elements.append(Paragraph(f"<b>Invoice No:</b> {invoice.invoice_number}", normal_style))
+    elements.append(Paragraph(f"<b>Date:</b> {invoice.invoice_date or datetime.now().date()}", normal_style))
+    elements.append(Paragraph(f"<b>Due Date:</b> {invoice.due_date or 'N/A'}", normal_style))
+    if invoice.purchase_order:
+        elements.append(Paragraph(f"<b>PO Reference:</b> {invoice.purchase_order.po_number}", normal_style))
+    elements.append(Spacer(1, 5*mm))
+    
+    # Supplier details
+    supplier = invoice.supplier
+    elements.append(Paragraph("Supplier Details:", heading_style))
+    elements.append(Paragraph(f"<b>Name:</b> {supplier.supplier_name if supplier else 'N/A'}", normal_style))
+    elements.append(Paragraph(f"<b>Contact:</b> {supplier.contact_person if supplier else 'N/A'}", normal_style))
+    elements.append(Paragraph(f"<b>Phone:</b> {supplier.phone if supplier else 'N/A'}", normal_style))
+    elements.append(Paragraph(f"<b>Email:</b> {supplier.email if supplier else 'N/A'}", normal_style))
+    elements.append(Paragraph(f"<b>KRA PIN:</b> {supplier.kra_pin if supplier else 'N/A'}", normal_style))
+    elements.append(Spacer(1, 5*mm))
+    
+    # Items table
+    items_data = [["#", "Item Description", "Qty", "Unit Price (KES)", "VAT", "Total (KES)"]]
+    for idx, item in enumerate(invoice.items, 1):
+        items_data.append([
+            str(idx),
+            item.item_description[:40] if item.item_description else "",
+            str(item.quantity),
+            f"{float(item.unit_price or 0):,.2f}",
+            item.vat_status.upper() if item.vat_status else "VATABLE",
+            f"{float(item.line_total or 0):,.2f}"
+        ])
+    
+    table = Table(items_data, colWidths=[8*mm, 65*mm, 15*mm, 25*mm, 20*mm, 27*mm])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), primary),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('ALIGN', (1, 1), (1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor("#F8F9FA")),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('FONTSIZE', (0, 1), (-1, -1), 7),
+    ]))
+    elements.append(table)
+    elements.append(Spacer(1, 5*mm))
+    
+    # Totals
+    totals_data = [
+        ["Sub Total:", "", "", "", "", f"{float(invoice.sub_total or 0):,.2f}"],
+        ["VAT (16%):", "", "", "", "", f"{float(invoice.vat_amount or 0):,.2f}"],
+        ["INVOICE TOTAL:", "", "", "", "", f"KES {float(invoice.invoice_total or 0):,.2f}"],
+        ["Amount Paid:", "", "", "", "", f"KES {float(invoice.amount_paid or 0):,.2f}"],
+        ["Balance Due:", "", "", "", "", f"KES {float(invoice.balance_due or 0):,.2f}"],
+    ]
+    
+    totals_table = Table(totals_data, colWidths=[15*mm, 15*mm, 15*mm, 15*mm, 15*mm, 85*mm])
+    totals_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('FONTNAME', (0, 2), (-1, 2), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 2), (-1, 2), 11),
+        ('TEXTCOLOR', (0, 2), (-1, 2), primary),
+        ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor("#F0F4FF")),
+        ('FONTNAME', (0, 4), (-1, 4), 'Helvetica-Bold'),
+        ('TEXTCOLOR', (0, 4), (-1, 4), colors.red if float(invoice.balance_due or 0) > 0 else colors.green),
+    ]))
+    elements.append(totals_table)
+    elements.append(Spacer(1, 5*mm))
+    
+    # Status
+    status_style = ParagraphStyle(
+        'Status',
+        fontSize=10,
+        fontName='Helvetica-Bold',
+        textColor=colors.green if invoice.status == "paid" else (colors.red if invoice.status in ["overdue", "pending"] else primary),
+    )
+    elements.append(Paragraph(f"Status: {invoice.status.upper()}", status_style))
+    elements.append(Paragraph(f"Payment Method: Bank Transfer / M-Pesa / Cash", normal_style))
+    
+    # Thank you
+    elements.append(Spacer(1, 10*mm))
+    thank_you_style = ParagraphStyle(
+        'ThankYou',
+        fontSize=9,
+        fontName='Helvetica-Oblique',
+        textColor=secondary,
+        alignment=TA_CENTER,
+    )
+    elements.append(Paragraph("Thank you for your business!", thank_you_style))
+    
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer

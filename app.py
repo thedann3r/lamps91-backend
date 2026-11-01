@@ -63,6 +63,14 @@ from resources.requisitions import (
     RequisitionPDF
 )
 
+from resources.supplier_invoices import (
+    SupplierInvoiceList,
+    SupplierInvoiceResource,
+    SupplierInvoicePDF,
+    SupplierPaymentList,
+    SupplierPaymentResource
+)
+
 load_dotenv(override=True)
 
 app = Flask(__name__)
@@ -88,37 +96,46 @@ api.add_resource(Customer, "/customers")
 api.add_resource(CustomerResource, "/customers/<int:customer_id>")
 api.add_resource(CustomerDetail, "/customers/<int:customer_id>/details")
 
+
 # Product endpoints
 api.add_resource(Product, "/products")
 api.add_resource(ProductResource, "/products/<int:product_id>")
+
 
 # Quotation endpoints
 api.add_resource(Quotation, "/quotations")
 api.add_resource(QuotationResource, "/quotations/<int:quotation_id>")
 
+
 # Sales Order endpoints
 api.add_resource(SalesOrder, "/salesorders")
 api.add_resource(SalesOrderResource, "/salesorders/<int:order_id>")
+
 
 # Invoice endpoints
 api.add_resource(Invoice, "/invoices")
 api.add_resource(InvoiceResource, "/invoices/<int:invoice_id>")
 
+
 # Receipt endpoints
 api.add_resource(Receipt, "/receipts")
 api.add_resource(ReceiptResource, "/receipts/<int:receipt_id>")
+
 
 # Supplier endpoints
 api.add_resource(Supplier, "/suppliers")
 api.add_resource(SupplierResource, "/suppliers/<int:supplier_id>")
 
+
 # Purchase Order endpoints
 api.add_resource(PurchaseOrder, "/purchaseorders")
 api.add_resource(PurchaseOrderResource, "/purchaseorders/<int:po_id>")
 
+
 # Stock Transaction endpoints
 api.add_resource(StockTransaction, "/stocktransactions")
 api.add_resource(StockTransactionResource, "/stocktransactions/<int:transaction_id>")
+
 
 # Project endpoints
 api.add_resource(Project, "/projects")
@@ -130,35 +147,43 @@ api.add_resource(Login, "/login")
 api.add_resource(RefreshToken, "/refresh")
 api.add_resource(Logout, "/logout")
 
+
 api.add_resource(SalesReport, "/reports/sales")
 api.add_resource(VATReport, "/reports/vat")
 api.add_resource(OutstandingReport, "/reports/outstanding")
 api.add_resource(MonthlySalesReport, "/reports/monthly-sales")
 api.add_resource(DashboardStats, "/dashboard")
 
+
 api.add_resource(QuotationPDF, "/quotations/<int:quotation_id>/pdf")
 api.add_resource(InvoicePDF, "/invoices/<int:invoice_id>/pdf")
 api.add_resource(ReceiptPDF, "/receipts/<int:receipt_id>/pdf")
+
 
 api.add_resource(SendQuotationEmail, "/quotations/<int:quotation_id>/email")
 api.add_resource(SendInvoiceEmail, "/invoices/<int:invoice_id>/email")
 api.add_resource(SendReceiptEmail, "/receipts/<int:receipt_id>/email")
 
+
 api.add_resource(KRAVATReport, "/reports/kra/vat")
 api.add_resource(KRAVATReportCSV, "/reports/kra/vat/csv")
 api.add_resource(KRAVATReportExcel, "/reports/kra/vat/excel")
+
 
 api.add_resource(VATSettingsList, "/vat-settings")
 api.add_resource(VATSettingsDetail, "/vat-settings/<int:setting_id>")
 api.add_resource(VATSettingsReset, "/vat-settings/reset")
 api.add_resource(VATSettingsCurrent, "/vat-settings/current")
 
+
 api.add_resource(CompanySettingsResource, "/company-settings")
 api.add_resource(CompanySettingsReset, "/company-settings/reset")
+
 
 api.add_resource(SendQuotationWhatsApp, "/quotations/<int:quotation_id>/whatsapp")
 api.add_resource(SendInvoiceWhatsApp, "/invoices/<int:invoice_id>/whatsapp")
 api.add_resource(SendReceiptWhatsApp, "/receipts/<int:receipt_id>/whatsapp")
+
 
 api.add_resource(ClientLPOList, "/client-lpos")
 api.add_resource(ClientLPOResource, "/client-lpos/<int:lpo_id>")
@@ -167,11 +192,20 @@ api.add_resource(ClientLPOUpload, "/client-lpos/<int:lpo_id>/upload")
 api.add_resource(ClientLPOGeneratePDF, "/client-lpos/<int:lpo_id>/pdf")
 api.add_resource(ClientLPOConvertToInvoice, "/client-lpos/<int:lpo_id>/convert-to-invoice")
 
+
 api.add_resource(RequisitionList, "/requisitions")
 api.add_resource(RequisitionResource, "/requisitions/<int:requisition_id>")
 api.add_resource(RequisitionApprove, "/requisitions/<int:requisition_id>/approve")
 api.add_resource(RequisitionConvertToPO, "/requisitions/<int:requisition_id>/convert-to-po")
 api.add_resource(RequisitionPDF, "/requisitions/<int:requisition_id>/pdf")
+
+
+api.add_resource(SupplierInvoiceList, "/supplier-invoices")
+api.add_resource(SupplierInvoiceResource, "/supplier-invoices/<int:invoice_id>")
+api.add_resource(SupplierInvoicePDF, "/supplier-invoices/<int:invoice_id>/pdf")
+
+api.add_resource(SupplierPaymentList, "/supplier-payments")
+api.add_resource(SupplierPaymentResource, "/supplier-payments/<int:payment_id>")
 
 if __name__ == "__main__":
     app.run(debug = True)
