@@ -730,3 +730,81 @@ class ClientLPO(db.Model, SerializerMixin):
             "customer": self.customer.to_dict() if self.customer else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class Requisitions(db.Model, SerializerMixin):
+    __tablename__ = "requisitions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    requisition_number = db.Column(db.String(50), unique=True, nullable=False)
+    requested_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    department = db.Column(db.String(100), nullable=True)
+    justification = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(50), default="pending")  # pending, approved, rejected, converted_to_po
+    approved_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    purchase_order_id = db.Column(db.Integer, db.ForeignKey("purchase_orders.id"), nullable=True)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    requested_by = db.relationship("Users", foreign_keys=[requested_by_id], backref="requisitions")
+    approved_by = db.relationship("Users", foreign_keys=[approved_by_id], backref="approved_requisitions")
+    purchase_order = db.relationship("PurchaseOrders", backref="requisition", uselist=False)
+    items = db.relationship("RequisitionItems", back_populates="requisition", lazy=True, cascade="all, delete-orphan")
+
+    serialize_rules = (
+        "-requested_by.requisitions",
+        "-approved_by.approved_requisitions",
+        "-purchase_order.requisition",
+        "-items.requisition",
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "requisition_number": self.requisition_number,
+            "requested_by_id": self.requested_by_id,
+            "requested_by_name": self.requested_by.name if self.requested_by else None,
+            "department": self.department,
+            "justification": self.justification,
+            "status": self.status,
+            "approved_by_id": self.approved_by_id,
+            "approved_by_name": self.approved_by.name if self.approved_by else None,
+            "purchase_order_id": self.purchase_order_id,
+            "items": [item.to_dict() for item in self.items],
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class RequisitionItems(db.Model, SerializerMixin):
+    __tablename__ = "requisition_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    requisition_id = db.Column(db.Integer, db.ForeignKey("requisitions.id"), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=True)
+    item_description = db.Column(db.Text, nullable=False)
+    quantity_requested = db.Column(db.Float, nullable=False, default=1)
+    estimated_unit_price = db.Column(db.Numeric(12, 2), default=0)
+    line_total = db.Column(db.Numeric(12, 2), default=0)
+    notes = db.Column(db.Text, nullable=True)
+
+    # Relationships
+    requisition = db.relationship("Requisitions", back_populates="items")
+    product = db.relationship("Products", backref="requisition_items")
+
+    serialize_rules = ("-requisition.items", "-product.requisition_items")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "requisition_id": self.requisition_id,
+            "product_id": self.product_id,
+            "product_name": self.product.product_name if self.product else None,
+            "item_description": self.item_description,
+            "quantity_requested": float(self.quantity_requested or 0),
+            "estimated_unit_price": float(self.estimated_unit_price or 0),
+            "line_total": float(self.line_total or 0),
+            "notes": self.notes,
+        }

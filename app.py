@@ -53,7 +53,15 @@ from resources.client_lpos import (
     ClientLPOUpload,
     ClientLPOGeneratePDF,
     ClientLPOConvertToInvoice
-)rce
+)
+
+from resources.requisitions import (
+    RequisitionList,
+    RequisitionResource,
+    RequisitionApprove,
+    RequisitionConvertToPO,
+    RequisitionPDF
+)
 
 load_dotenv(override=True)
 
@@ -158,6 +166,12 @@ api.add_resource(ClientLPOApprove, "/client-lpos/<int:lpo_id>/approve")
 api.add_resource(ClientLPOUpload, "/client-lpos/<int:lpo_id>/upload")
 api.add_resource(ClientLPOGeneratePDF, "/client-lpos/<int:lpo_id>/pdf")
 api.add_resource(ClientLPOConvertToInvoice, "/client-lpos/<int:lpo_id>/convert-to-invoice")
+
+api.add_resource(RequisitionList, "/requisitions")
+api.add_resource(RequisitionResource, "/requisitions/<int:requisition_id>")
+api.add_resource(RequisitionApprove, "/requisitions/<int:requisition_id>/approve")
+api.add_resource(RequisitionConvertToPO, "/requisitions/<int:requisition_id>/convert-to-po")
+api.add_resource(RequisitionPDF, "/requisitions/<int:requisition_id>/pdf")
 
 if __name__ == "__main__":
     app.run(debug = True)

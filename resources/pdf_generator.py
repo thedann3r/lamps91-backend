@@ -621,3 +621,84 @@ def generate_lpo_pdf(lpo, company_info=None):
     doc.build(elements)
     buffer.seek(0)
     return buffer
+
+def generate_requisition_pdf(requisition, company_info=None):
+    """Generate branded PDF for a requisition"""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=20*mm, leftMargin=20*mm, topMargin=20*mm, bottomMargin=20*mm)
+    
+    styles = getSampleStyleSheet()
+    heading_style = styles['Heading2']
+    normal_style = styles['Normal']
+    
+    company = company_info or get_company_info()
+    primary = colors.HexColor(company.get("primary_color", "#1E3A8A"))
+    secondary = colors.HexColor(company.get("secondary_color", "#F59E0B"))
+    
+    elements = []
+    add_company_header(elements, company)
+    add_document_title(elements, "REQUISITION", company.get("primary_color", "#1E3A8A"))
+    
+    # Requisition details
+    elements.append(Paragraph(f"<b>Requisition No:</b> {requisition.requisition_number}", normal_style))
+    elements.append(Paragraph(f"<b>Date:</b> {requisition.created_at.date() if requisition.created_at else datetime.now().date()}", normal_style))
+    elements.append(Paragraph(f"<b>Department:</b> {requisition.department or 'N/A'}", normal_style))
+    elements.append(Paragraph(f"<b>Requested By:</b> {requisition.requested_by.name if requisition.requested_by else 'N/A'}", normal_style))
+    elements.append(Paragraph(f"<b>Status:</b> {requisition.status.upper()}", normal_style))
+    elements.append(Spacer(1, 5*mm))
+    
+    # Justification
+    if requisition.justification:
+        elements.append(Paragraph("Justification:", heading_style))
+        elements.append(Paragraph(requisition.justification, normal_style))
+        elements.append(Spacer(1, 5*mm))
+    
+    # Items table
+    items_data = [["#", "Item Description", "Qty", "Unit Price (KES)", "Total (KES)"]]
+    for idx, item in enumerate(requisition.items, 1):
+        items_data.append([
+            str(idx),
+            item.item_description[:50] if item.item_description else "",
+            str(item.quantity_requested),
+            f"{float(item.estimated_unit_price or 0):,.2f}",
+            f"{float(item.line_total or 0):,.2f}"
+        ])
+    
+    table = Table(items_data, colWidths=[10*mm, 80*mm, 20*mm, 30*mm, 30*mm])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), primary),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('ALIGN', (1, 1), (1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor("#F8F9FA")),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('FONTSIZE', (0, 1), (-1, -1), 8),
+    ]))
+    elements.append(table)
+    elements.append(Spacer(1, 5*mm))
+    
+    # Total
+    total = sum(float(item.line_total or 0) for item in requisition.items)
+    elements.append(Paragraph(f"<b>Estimated Total:</b> KES {total:,.2f}", normal_style))
+    elements.append(Spacer(1, 10*mm))
+    
+    # Signature area
+    sig_data = [
+        ["Requested By:", "_______________________________", "Approved By:", "_______________________________"],
+        ["Signature:", "_______________________________", "Signature:", "_______________________________"],
+        ["Date:", "_______________________________", "Date:", "_______________________________"],
+    ]
+    sig_table = Table(sig_data, colWidths=[30*mm, 50*mm, 30*mm, 50*mm])
+    sig_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 15),
+    ]))
+    elements.append(sig_table)
+    
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
