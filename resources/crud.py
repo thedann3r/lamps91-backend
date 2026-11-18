@@ -788,9 +788,6 @@ class Receipt(Resource):
         receipts = Receipts.query.filter_by(deleted_at=None).all()
         return [receipt.to_dict() for receipt in receipts], 200
 
-    # @jwt_required()
-    # @finance_required  # Finance and admin can view invoices
-class Receipt(Resource):
     @jwt_required()
     @finance_required
     def post(self):
