@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from flask import request
 from flask_restful import Resource
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -794,12 +795,73 @@ class Receipt(Resource):
         data = request.get_json()
         required_fields = {"customer_id", "payment_method", "amount_received"}
 
-        if not data or not all(field in data for field in required_fields):
+        if not isinstance(data, dict) or not all(field in data for field in required_fields):
             return {"error": "Missing required fields!"}, 400
 
-        customer = Customers.query.filter_by(id=data.get("customer_id"), deleted_at=None).first()
+        try:
+            customer_id = int(data["customer_id"])
+        except (TypeError, ValueError):
+            return {"error": "Customer ID must be a valid integer!"}, 400
+
+
+        customer = Customers.query.filter_by(id=customer_id, deleted_at=None).first()
         if not customer:
+
             return {"error": "Customer not found!"}, 404
+
+        try:
+            amount_received = Decimal(str(data["amount_received"]))
+        except (InvalidOperation, TypeError, ValueError):
+            return {"error": "Amount received must be a valid number!"}, 400
+
+        if not amount_received.is_finite() or amount_received <= 0:
+            return {"error": "Amount received must be greater than zero!"}, 400
+        if amount_received != amount_received.quantize(Decimal("0.01")):
+            return {"error": "Amount received cannot have more than two decimal places!"}, 400
+
+        payment_method = clean_text(data.get("payment_method"))
+        allowed_payment_methods = {"cash", "bank_transfer", "cheque", "mpesa"}
+        if not payment_method or payment_method.lower() not in allowed_payment_methods:
+            return {"error": "Payment method must be cash, bank_transfer, cheque, or mpesa!"}, 400
+        payment_method = payment_method.lower()
+
+        invoice = None
+        invoice_id = data.get("invoice_id")
+        if invoice_id is not None:
+            try:
+                invoice_id = int(invoice_id)
+            except (TypeError, ValueError):
+                return {"error": "Invoice ID must be a valid integer!"}, 400
+
+            invoice = Invoices.query.filter_by(id=invoice_id, deleted_at=None).first()
+            if not invoice:
+                return {"error": "Invoice not found!"}, 404
+            if invoice.customer_id != customer.id:
+                return {"error": "Invoice does not belong to this customer!"}, 400
+
+            invoice_balance = Decimal(str(invoice.invoice_total or 0)) - Decimal(str(invoice.amount_paid or 0))
+            if invoice_balance <= 0:
+                return {"error": "Invoice has no outstanding balance!"}, 400
+            if amount_received > invoice_balance:
+                return {"error": "Amount received exceeds the invoice balance!"}, 400
+            new_outstanding_balance = max(
+                Decimal("0"), Decimal(str(customer.outstanding_balance or 0)) - amount_received
+            )
+        else:
+            customer_balance = Decimal(str(customer.outstanding_balance or 0))
+            if amount_received > customer_balance:
+                return {"error": "Amount received exceeds the customer's outstanding balance!"}, 400
+            new_outstanding_balance = customer_balance - amount_received
+
+        if data.get("receipt_date"):
+            try:
+                receipt_date = parse_date(data["receipt_date"])
+            except (TypeError, ValueError):
+                return {"error": "Receipt date must use YYYY-MM-DD format!"}, 400
+        else:
+            receipt_date = datetime.utcnow().date()
+
+            
 
         # Generate receipt number if not provided
         if not data.get("receipt_number"):
@@ -807,42 +869,55 @@ class Receipt(Resource):
             last_num = int(last_receipt.receipt_number.split("-")[1]) if last_receipt and last_receipt.receipt_number else 0
             data["receipt_number"] = f"REC-{last_num + 1:04d}"
 
-        try:
-            amount_received = float(data.get("amount_received"))
-        except ValueError:
-            return {"error": "Amount received must be a valid number!"}, 400
+        # try:
+        #     amount_received = float(data.get("amount_received"))
+        # except ValueError:
+        #     return {"error": "Amount received must be a valid number!"}, 400
 
         receipt = Receipts(
             receipt_number=clean_text(data.get("receipt_number")),
-            receipt_date=parse_date(data.get("receipt_date")) or datetime.utcnow().date(),
+            # receipt_date=parse_date(data.get("receipt_date")) or datetime.utcnow().date(),
+            receipt_date=receipt_date,
             customer_id=customer.id,
-            invoice_id=data.get("invoice_id"),
-            payment_method=clean_text(data.get("payment_method")),
+            # invoice_id=data.get("invoice_id"),
+            # payment_method=clean_text(data.get("payment_method")),
+            invoice_id=invoice.id if invoice else None,
+            payment_method=payment_method,
             transaction_reference=clean_text(data.get("transaction_reference")),
-            amount_received=amount_received,
-            outstanding_balance=float(data.get("outstanding_balance", 0)),
+            # amount_received=amount_received,
+            # outstanding_balance=float(data.get("outstanding_balance", 0)),
+            amount_received=float(amount_received),
+            outstanding_balance=float(new_outstanding_balance),
             received_by=clean_text(data.get("received_by")),
             notes=clean_text(data.get("notes")),
         )
 
         db.session.add(receipt)
+
+        customer.outstanding_balance = float(new_outstanding_balance)
+        if invoice:
+            invoice.amount_paid = float(Decimal(str(invoice.amount_paid or 0)) + amount_received)
+            invoice.balance_due = float(invoice_balance - amount_received)
+            if invoice.balance_due <= 0:
+                invoice.status = "paid"
+
         db.session.commit()
 
         # Update invoice balance if invoice_id is provided
-        if data.get("invoice_id"):
-            invoice = Invoices.query.get(data.get("invoice_id"))
-            if invoice:
-                # ✅ Convert Decimal to float before math
-                invoice.amount_paid = float(invoice.amount_paid or 0) + amount_received
-                invoice.balance_due = float(invoice.invoice_total or 0) - float(invoice.amount_paid or 0)
-                if invoice.balance_due <= 0:
-                    invoice.status = "paid"
-                db.session.commit()
+        # if data.get("invoice_id"):
+        #     invoice = Invoices.query.get(data.get("invoice_id"))
+        #     if invoice:
+        #         # ✅ Convert Decimal to float before math
+        #         invoice.amount_paid = float(invoice.amount_paid or 0) + amount_received
+        #         invoice.balance_due = float(invoice.invoice_total or 0) - float(invoice.amount_paid or 0)
+        #         if invoice.balance_due <= 0:
+        #             invoice.status = "paid"
+        #         db.session.commit()
 
         # Update customer outstanding balance
-        if customer:
-            customer.outstanding_balance = float(customer.outstanding_balance or 0) - amount_received
-            db.session.commit()
+        # if customer:
+        #     customer.outstanding_balance = float(customer.outstanding_balance or 0) - amount_received
+        #     db.session.commit()
 
         return receipt.to_dict(), 201
 
