@@ -1,3 +1,1471 @@
+# from datetime import datetime
+# from decimal import Decimal, InvalidOperation
+# from flask import request
+# from flask_restful import Resource
+# from flask_jwt_extended import jwt_required, get_jwt_identity
+# from models import db, Customers, Products, Quotations, QuotationItems, SalesOrders, Invoices, InvoiceItems, Receipts, Suppliers, PurchaseOrders, PurchaseOrderItems, StockTransactions, Projects, VATSettings
+# from resources.decorators import admin_required, finance_required, store_required, sales_required, engineer_required
+
+# # VAT_RATE = 0.16
+# # VAT_EXEMPT_CATEGORIES = {"solar panels", "inverters", "batteries"}
+
+# def clean_text(value):
+#     if value is None:
+#         return None
+#     return str(value).strip()
+
+
+# def parse_date(value):
+#     if not value:
+#         return None
+#     return datetime.strptime(value, "%Y-%m-%d").date()
+
+
+# def get_vat_settings():
+#     """Get current VAT settings from database"""
+#     settings = VATSettings.query.filter_by(deleted_at=None).all()
+    
+#     if not settings:
+#         # Fallback to defaults if no settings exist
+#         return {
+#             "vat_rate": 0.16,
+#             "exempt_categories": {"solar panels", "inverters", "batteries"}
+#         }
+    
+#     exempt_categories = {s.category_name for s in settings if s.is_exempt}
+#     vat_rates = [s.vat_rate for s in settings if not s.is_exempt]
+#     current_vat_rate = max(set(vat_rates), key=vat_rates.count) if vat_rates else 0.16
+    
+#     return {
+#         "vat_rate": current_vat_rate,
+#         "exempt_categories": exempt_categories
+#     }
+
+
+# def get_vat_status(category, vat_status=None):
+#     """Determine VAT status based on database settings"""
+#     if vat_status:
+#         return clean_text(vat_status).lower()
+    
+#     if not category:
+#         return "vatable"
+    
+#     vat_settings = get_vat_settings()
+#     category_lower = clean_text(category).lower()
+    
+#     # Check if category is in exempt list
+#     for exempt_cat in vat_settings["exempt_categories"]:
+#         if exempt_cat in category_lower or category_lower in exempt_cat:
+#             return "exempt"
+    
+#     return "vatable"
+
+
+# def get_current_vat_rate():
+#     """Get current VAT rate from database"""
+#     vat_settings = get_vat_settings()
+#     return vat_settings["vat_rate"]
+
+
+# def calculate_quote_totals(quotation):
+#     """Calculate quotation totals with dynamic VAT rate"""
+#     sub_total = 0
+#     vat_exempt_total = 0
+#     vatable_total = 0
+#     vat_rate = get_current_vat_rate()  # ✅ Dynamic from database
+
+#     for item in quotation.items:
+#         quantity = float(item.quantity)
+#         unit_price = float(item.unit_price)
+#         discount = float(item.discount)
+        
+#         gross_total = quantity * unit_price
+#         item.line_total = gross_total - discount
+#         sub_total += item.line_total
+
+#         if item.vat_status == "exempt":
+#             vat_exempt_total += item.line_total
+#         else:
+#             vatable_total += item.line_total
+
+#     quotation.sub_total = sub_total
+#     quotation.vat_exempt_total = vat_exempt_total
+#     quotation.vatable_total = vatable_total
+#     quotation.vat_amount = vatable_total * vat_rate  # ✅ Dynamic rate
+#     quotation.grand_total = sub_total + quotation.vat_amount
+
+
+# def calculate_invoice_totals(invoice):
+#     """Calculate invoice totals with dynamic VAT rate"""
+#     sub_total = 0
+#     vat_exempt_total = 0
+#     vatable_total = 0
+#     vat_rate = get_current_vat_rate()  # ✅ Dynamic from database
+
+#     for item in invoice.invoice_items:
+#         quantity = float(item.quantity)
+#         unit_price = float(item.unit_price)
+#         discount = float(item.discount)
+        
+#         gross_total = quantity * unit_price
+#         item.line_total = gross_total - discount
+#         sub_total += item.line_total
+
+#         if item.vat_status == "exempt":
+#             vat_exempt_total += item.line_total
+#         else:
+#             vatable_total += item.line_total
+
+#     invoice.sub_total = sub_total
+#     invoice.vat_exempt_total = vat_exempt_total
+#     invoice.vatable_total = vatable_total
+#     invoice.vat_amount = vatable_total * vat_rate  # ✅ Dynamic rate
+#     invoice.invoice_total = sub_total + invoice.vat_amount
+#     invoice.balance_due = invoice.invoice_total - float(invoice.amount_paid or 0)
+
+
+# # ==================== CUSTOMER RESOURCES ====================
+
+# class Customer(Resource):
+#     @jwt_required()
+#     @sales_required  # Sales and admin can view customers
+#     def get(self):
+#         customers = Customers.query.filter_by(deleted_at=None).all()
+#         return [customer.to_dict() for customer in customers], 200
+
+#     @jwt_required()
+#     @sales_required  # Sales and admin can view customers
+#     def post(self):
+#         data = request.get_json()
+#         required_fields = {"customer_name", "phone"}
+
+#         if not data or not all(field in data for field in required_fields):
+#             return {"error": "Missing required fields!"}, 422
+
+#         new_customer = Customers(
+#             customer_name=clean_text(data.get("customer_name")),
+#             contact_person=clean_text(data.get("contact_person")),
+#             phone=clean_text(data.get("phone")),
+#             email=clean_text(data.get("email")),
+#             kra_pin=clean_text(data.get("kra_pin")),
+#             physical_address=clean_text(data.get("physical_address")),
+#             county=clean_text(data.get("county")),
+#             customer_type=clean_text(data.get("customer_type")) or "commercial",
+#         )
+
+#         db.session.add(new_customer)
+#         db.session.commit()
+
+#         return new_customer.to_dict(), 201
+
+
+# class CustomerResource(Resource):
+#     @jwt_required()
+#     @sales_required  # Sales and admin can view customers
+#     def get(self, customer_id):
+#         customer = Customers.query.filter_by(id=customer_id, deleted_at=None).first()
+
+#         if not customer:
+#             return {"error": "Customer not found!"}, 404
+
+#         return customer.to_dict(), 200
+
+#     @jwt_required()
+#     @sales_required  # Sales and admin can view customers
+#     def patch(self, customer_id):
+#         customer = Customers.query.filter_by(id=customer_id, deleted_at=None).first()
+
+#         if not customer:
+#             return {"error": "Customer not found!"}, 404
+
+#         data = request.get_json()
+
+#         for field in [
+#             "customer_name",
+#             "contact_person",
+#             "phone",
+#             "email",
+#             "kra_pin",
+#             "physical_address",
+#             "county",
+#             "customer_type",
+#         ]:
+#             if field in data:
+#                 setattr(customer, field, clean_text(data.get(field)))
+
+#         db.session.commit()
+
+#         return customer.to_dict(), 200
+
+#     @jwt_required()
+#     @admin_required  # Only admin can delete customers (soft delete)
+#     def delete(self, customer_id):
+#         customer = Customers.query.filter_by(id=customer_id, deleted_at=None).first()
+
+#         if not customer:
+#             return {"error": "Customer not found!"}, 404
+
+#         customer.deleted_at = datetime.utcnow()
+#         db.session.commit()
+
+#         return {"message": "Customer deleted successfully!"}, 200
+
+
+# class CustomerDetail(Resource):
+#     @jwt_required()
+#     @sales_required
+#     def get(self, customer_id):
+#         customer = Customers.query.filter_by(id=customer_id, deleted_at=None).first()
+
+#         if not customer:
+#             return {"error": "Customer not found!"}, 404
+
+#         return {
+#             "customer": customer.to_dict(),
+#             "outstanding_balance": float(customer.outstanding_balance or 0),
+#             "quotations": [q.to_dict() for q in customer.quotations],
+#             "sales_orders": [so.to_dict() for so in customer.sales_orders],
+#             "invoices": [inv.to_dict() for inv in customer.invoices],
+#             "payments": [r.to_dict() for r in customer.receipts],
+#             "projects": [p.to_dict() for p in customer.projects],
+#             "stats": {
+#                 "total_quotations": len(customer.quotations),
+#                 "total_sales_orders": len(customer.sales_orders),
+#                 "total_invoices": len(customer.invoices),
+#                 "total_payments": len(customer.receipts),
+#                 "total_projects": len(customer.projects),
+#                 "total_spent": sum(float(inv.invoice_total or 0) for inv in customer.invoices),
+#                 "total_paid": sum(float(r.amount_received or 0) for r in customer.receipts),
+#             }
+#         }, 200
+
+
+# # ==================== PRODUCT RESOURCES ====================
+
+# class Product(Resource):
+#     @jwt_required()
+#     @store_required  # Store managers and admin can view products
+#     def get(self):
+#         products = Products.query.filter_by(deleted_at=None).all()
+#         return [product.to_dict() for product in products], 200
+
+#     @jwt_required()
+#     @store_required  # Store managers and admin can view products
+#     def post(self):
+#         data = request.get_json()
+#         required_fields = {"item_code", "product_name", "category", "selling_price"}
+
+#         if not data or not all(field in data for field in required_fields):
+#             return {"error": "Missing required fields!"}, 422
+
+#         if Products.query.filter_by(item_code=clean_text(data.get("item_code"))).first():
+#             return {"error": "Item code already exists!"}, 400
+
+#         try:
+#             selling_price = float(data.get("selling_price"))
+#             buying_price = float(data.get("buying_price", 0))
+#             current_stock = float(data.get("current_stock", 0))
+#             reorder_level = float(data.get("reorder_level", 0))
+
+#         except ValueError:
+#             return {"error": "Prices and stock values must be valid numbers!"}, 400
+
+#         category = clean_text(data.get("category"))
+#         new_product = Products(
+#             item_code=clean_text(data.get("item_code")),
+#             product_name=clean_text(data.get("product_name")),
+#             category=category,
+#             brand=clean_text(data.get("brand")),
+#             unit=clean_text(data.get("unit")) or "pcs",
+#             buying_price=buying_price,
+#             selling_price=selling_price,
+#             vat_status=get_vat_status(category, data.get("vat_status")),
+#             current_stock=current_stock,
+#             reorder_level=reorder_level,
+#         )
+
+#         db.session.add(new_product)
+#         db.session.commit()
+
+#         return new_product.to_dict(), 201
+
+
+# class ProductResource(Resource):
+#     @jwt_required()
+#     @store_required  # Store managers and admin can view products
+#     def get(self, product_id):
+#         product = Products.query.filter_by(id=product_id, deleted_at=None).first()
+
+#         if not product:
+#             return {"error": "Product not found!"}, 404
+
+#         return product.to_dict(), 200
+
+#     @jwt_required()
+#     @store_required  # Store managers and admin can view products
+#     def patch(self, product_id):
+#         product = Products.query.filter_by(id=product_id, deleted_at=None).first()
+
+#         if not product:
+#             return {"error": "Product not found!"}, 404
+
+#         data = request.get_json()
+
+#         text_fields = ["item_code", "product_name", "category", "brand", "unit", "vat_status"]
+#         for field in text_fields:
+#             if field in data:
+#                 setattr(product, field, clean_text(data.get(field)))
+
+#         numeric_fields = ["buying_price", "selling_price"]
+#         for field in numeric_fields:
+#             if field in data:
+#                 setattr(product, field, float(data.get(field)))
+
+#         stock_fields = ["current_stock", "reorder_level"]
+#         for field in stock_fields:
+#             if field in data:
+#                 setattr(product, field, float(data.get(field)))
+
+#         db.session.commit()
+
+#         return product.to_dict(), 200
+
+#     @jwt_required()
+#     @admin_required
+#     def delete(self, product_id):
+#         product = Products.query.filter_by(id=product_id, deleted_at=None).first()
+
+#         if not product:
+#             return {"error": "Product not found!"}, 404
+
+#         product.deleted_at = datetime.utcnow()
+#         db.session.commit()
+
+#         return {"message": "Product deleted successfully!"}, 200
+
+
+# # ==================== QUOTATION RESOURCES ====================
+
+# class Quotation(Resource):
+#     @jwt_required()
+#     @sales_required  # Sales and admin can view quotes
+#     def get(self):
+#         quotations = Quotations.query.filter_by(deleted_at=None).all()
+#         return [quotation.to_dict() for quotation in quotations], 200
+    
+#     @jwt_required()
+#     @sales_required  # Sales and admin can view quotes
+#     def post(self):
+#         data = request.get_json()
+#         required_fields = {"quote_number", "customer_id", "items"}
+
+#         if not data or not all(field in data for field in required_fields):
+#             return {"error": "Missing required fields!"}, 422
+
+#         customer = Customers.query.filter_by(id=data.get("customer_id"), deleted_at=None).first()
+#         if not customer:
+#             return {"error": "Customer not found!"}, 404
+
+#         if Quotations.query.filter_by(quote_number=clean_text(data.get("quote_number"))).first():
+#             return {"error": "Quote number already exists!"}, 400
+
+#         if not data.get("items"):
+#             return {"error": "A quotation must have at least one item!"}, 400
+
+#         # Get current user as prepared_by
+#         current_user_id = get_jwt_identity()
+        
+#         quotation = Quotations(
+#             quote_number=clean_text(data.get("quote_number")),
+#             quote_date=parse_date(data.get("quote_date")) or datetime.utcnow().date(),
+#             valid_until=parse_date(data.get("valid_until")),
+#             customer_id=customer.id,
+#             project_name=clean_text(data.get("project_name")),
+#             site_location=clean_text(data.get("site_location")),
+#             terms_conditions=clean_text(data.get("terms_conditions")),
+#             authorized_by=clean_text(data.get("authorized_by")),
+#             prepared_by_id=int(current_user_id),
+#         )
+
+#         db.session.add(quotation)
+#         db.session.flush()
+
+#         for item in data.get("items", []):
+#             product = None
+#             product_id = item.get("product_id")
+#             if product_id:
+#                 product = Products.query.filter_by(id=product_id, deleted_at=None).first()
+#                 if not product:
+#                     return {"error": f"Product with id {product_id} not found!"}, 404
+
+#             item_description = clean_text(item.get("item_description"))
+#             if not item_description and not product:
+#                 return {"error": "Each custom quotation item needs an item_description!"}, 422
+
+#             try:
+#                 quantity = float(item.get("quantity", 1))
+#                 unit_price = float(item.get("unit_price", product.selling_price if product else 0))
+#                 discount = float(item.get("discount", 0))
+#             except ValueError:
+#                 return {"error": "Quantity, unit price, and discount must be valid numbers!"}, 400
+
+#             quote_item = QuotationItems(
+#                 quotation_id=quotation.id,
+#                 product_id=product.id if product else None,
+#                 item_description=item_description or product.product_name,
+#                 quantity=quantity,
+#                 unit_price=unit_price,
+#                 discount=discount,
+#                 vat_status=get_vat_status(product.category if product else None, item.get("vat_status") or (product.vat_status if product else None)),
+#             )
+#             db.session.add(quote_item)
+
+#         db.session.flush()
+#         calculate_quote_totals(quotation)
+#         db.session.commit()
+
+#         return quotation.to_dict(), 201
+    
+    
+# class QuotationResource(Resource):
+#     @jwt_required()
+#     @sales_required  # Sales and admin can view quotes
+#     def get(self, quotation_id):
+#         quotation = Quotations.query.filter_by(id=quotation_id, deleted_at=None).first()
+
+#         if not quotation:
+#             return {"error": "Quotation not found!"}, 404
+
+#         return quotation.to_dict(), 200
+
+#     @jwt_required()
+#     @admin_required
+#     def delete(self, quotation_id):
+#         quotation = Quotations.query.filter_by(id=quotation_id, deleted_at=None).first()
+
+#         if not quotation:
+#             return {"error": "Quotation not found!"}, 404
+
+#         quotation.deleted_at = datetime.utcnow()
+#         db.session.commit()
+
+#         return {"message": "Quotation deleted successfully!"}, 200
+
+
+# # ==================== SALES ORDER RESOURCES ====================
+
+# class SalesOrder(Resource):
+#     @jwt_required()
+#     @sales_required
+#     def get(self):
+#         orders = SalesOrders.query.filter_by(deleted_at=None).all()
+#         return [order.to_dict() for order in orders], 200
+
+#     @jwt_required()
+#     @sales_required
+#     def post(self):
+#         data = request.get_json()
+#         required_fields = {"customer_id"}
+
+#         if not data or not all(field in data for field in required_fields):
+#             return {"error": "Missing required fields!"}, 422
+
+#         customer = Customers.query.filter_by(id=data.get("customer_id"), deleted_at=None).first()
+#         if not customer:
+#             return {"error": "Customer not found!"}, 404
+
+#         # Generate SO number if not provided
+#         if not data.get("so_number"):
+#             last_order = SalesOrders.query.order_by(SalesOrders.id.desc()).first()
+#             last_num = int(last_order.so_number.split("-")[1]) if last_order and last_order.so_number else 0
+#             data["so_number"] = f"SO-{last_num + 1:04d}"
+
+#         order = SalesOrders(
+#             so_number=clean_text(data.get("so_number")),
+#             so_date=parse_date(data.get("so_date")) or datetime.utcnow().date(),
+#             customer_id=customer.id,
+#             quotation_id=data.get("quotation_id"),
+#             project_name=clean_text(data.get("project_name")),
+#             delivery_date=parse_date(data.get("delivery_date")),
+#             inventory_reserved=data.get("inventory_reserved", False),
+#             installation_team=clean_text(data.get("installation_team")),
+#             status=clean_text(data.get("status")) or "pending",
+#             total_amount=float(data.get("total_amount", 0)),
+#             notes=clean_text(data.get("notes")),
+#         )
+
+#         db.session.add(order)
+#         db.session.commit()
+
+#         return order.to_dict(), 201
+
+
+# class SalesOrderResource(Resource):
+#     @jwt_required()
+#     @sales_required
+#     def get(self, order_id):
+#         order = SalesOrders.query.filter_by(id=order_id, deleted_at=None).first()
+
+#         if not order:
+#             return {"error": "Sales order not found!"}, 404
+
+#         return order.to_dict(), 200
+
+#     @jwt_required()
+#     @sales_required
+#     def patch(self, order_id):
+#         order = SalesOrders.query.filter_by(id=order_id, deleted_at=None).first()
+
+#         if not order:
+#             return {"error": "Sales order not found!"}, 404
+
+#         data = request.get_json()
+
+#         text_fields = ["so_number", "project_name", "installation_team", "status", "notes"]
+#         for field in text_fields:
+#             if field in data:
+#                 setattr(order, field, clean_text(data.get(field)))
+
+#         date_fields = ["so_date", "delivery_date"]
+#         for field in date_fields:
+#             if field in data:
+#                 setattr(order, field, parse_date(data.get(field)))
+
+#         if "inventory_reserved" in data:
+#             order.inventory_reserved = bool(data.get("inventory_reserved"))
+
+#         if "total_amount" in data:
+#             order.total_amount = float(data.get("total_amount"))
+
+#         if "customer_id" in data:
+#             customer = Customers.query.filter_by(id=data.get("customer_id"), deleted_at=None).first()
+#             if not customer:
+#                 return {"error": "Customer not found!"}, 404
+#             order.customer_id = customer.id
+
+#         if "quotation_id" in data:
+#             order.quotation_id = data.get("quotation_id")
+
+#         db.session.commit()
+
+#         return order.to_dict(), 200
+
+#     @jwt_required()
+#     @admin_required
+#     def delete(self, order_id):
+#         order = SalesOrders.query.filter_by(id=order_id, deleted_at=None).first()
+
+#         if not order:
+#             return {"error": "Sales order not found!"}, 404
+
+#         order.deleted_at = datetime.utcnow()
+#         db.session.commit()
+
+#         return {"message": "Sales order deleted successfully!"}, 200
+
+
+
+# def calculate_invoice_totals(invoice):
+#     sub_total = 0
+#     vat_exempt_total = 0
+#     vatable_total = 0
+
+#     for item in invoice.invoice_items:
+#         quantity = float(item.quantity)
+#         unit_price = float(item.unit_price)
+#         discount = float(item.discount)
+        
+#         gross_total = quantity * unit_price
+#         item.line_total = gross_total - discount
+#         sub_total += item.line_total
+
+#         if item.vat_status == "exempt":
+#             vat_exempt_total += item.line_total
+#         else:
+#             vatable_total += item.line_total
+
+#     invoice.sub_total = sub_total
+#     invoice.vat_exempt_total = vat_exempt_total
+#     invoice.vatable_total = vatable_total
+#     invoice.vat_amount = vatable_total * VAT_RATE
+#     invoice.invoice_total = sub_total + invoice.vat_amount
+#     invoice.balance_due = invoice.invoice_total - float(invoice.amount_paid or 0)
+
+# # ==================== INVOICE RESOURCES ====================
+
+# class Invoice(Resource):
+#     @jwt_required()
+#     @finance_required  # Finance and admin can view invoices
+#     def get(self):
+#         invoices = Invoices.query.filter_by(deleted_at=None).all()
+#         return [invoice.to_dict() for invoice in invoices], 200
+
+#     @jwt_required()
+#     @finance_required  # Finance and admin can view invoices
+#     def post(self):
+#         data = request.get_json()
+#         required_fields = {"customer_id", "items"}
+
+#         if not data or not all(field in data for field in required_fields):
+#             return {"error": "Missing required fields!"}, 400
+
+#         customer = Customers.query.filter_by(id=data.get("customer_id"), deleted_at=None).first()
+#         if not customer:
+#             return {"error": "Customer not found!"}, 404
+
+#         if not data.get("items"):
+#             return {"error": "An invoice must have at least one item!"}, 400
+
+#         # Generate invoice number if not provided
+#         if not data.get("invoice_number"):
+#             last_invoice = Invoices.query.order_by(Invoices.id.desc()).first()
+#             last_num = int(last_invoice.invoice_number.split("-")[1]) if last_invoice and last_invoice.invoice_number else 0
+#             data["invoice_number"] = f"INV-{last_num + 1:04d}"
+
+#         invoice = Invoices(
+#             invoice_number=clean_text(data.get("invoice_number")),
+#             invoice_date=parse_date(data.get("invoice_date")) or datetime.utcnow().date(),
+#             due_date=parse_date(data.get("due_date")),
+#             customer_id=customer.id,
+#             sales_order_id=data.get("sales_order_id"),
+#             quotation_id=data.get("quotation_id"),
+#             reference=clean_text(data.get("reference")),
+#             amount_paid=float(data.get("amount_paid", 0)),
+#             status=clean_text(data.get("status")) or "pending",
+#             notes=clean_text(data.get("notes")),
+#         )
+
+#         db.session.add(invoice)
+#         db.session.flush()
+
+#         for item in data.get("items", []):
+#             product = None
+#             product_id = item.get("product_id")
+#             if product_id:
+#                 product = Products.query.filter_by(id=product_id, deleted_at=None).first()
+#                 if not product:
+#                     return {"error": f"Product with id {product_id} not found!"}, 404
+
+#             item_description = clean_text(item.get("item_description"))
+#             if not item_description and not product:
+#                 return {"error": "Each invoice item needs an item_description!"}, 422
+
+#             try:
+#                 quantity = float(item.get("quantity", 1))
+#                 unit_price = float(item.get("unit_price", product.selling_price if product else 0))
+#                 discount = float(item.get("discount", 0))
+#             except ValueError:
+#                 return {"error": "Quantity, unit price, and discount must be valid numbers!"}, 400
+
+#             invoice_item = InvoiceItems(
+#                 invoice_id=invoice.id,
+#                 product_id=product.id if product else None,
+#                 item_description=item_description or product.product_name,
+#                 quantity=quantity,
+#                 unit_price=unit_price,
+#                 discount=discount,
+#                 vat_status=get_vat_status(product.category if product else None, item.get("vat_status") or (product.vat_status if product else None)),
+#             )
+#             db.session.add(invoice_item)
+
+#         db.session.flush()
+#         calculate_invoice_totals(invoice)
+#         db.session.commit()
+
+#         return invoice.to_dict(), 201
+
+
+# class InvoiceResource(Resource):
+#     @jwt_required()
+#     @finance_required  # Finance and admin can view invoices
+#     def get(self, invoice_id):
+#         invoice = Invoices.query.filter_by(id=invoice_id, deleted_at=None).first()
+
+#         if not invoice:
+#             return {"error": "Invoice not found!"}, 404
+
+#         return invoice.to_dict(), 200
+
+#     @jwt_required()
+#     @finance_required  # Finance and admin can view invoices
+#     def patch(self, invoice_id):
+#         invoice = Invoices.query.filter_by(id=invoice_id, deleted_at=None).first()
+
+#         if not invoice:
+#             return {"error": "Invoice not found!"}, 404
+
+#         data = request.get_json()
+
+#         text_fields = ["invoice_number", "reference", "status", "notes"]
+#         for field in text_fields:
+#             if field in data:
+#                 setattr(invoice, field, clean_text(data.get(field)))
+
+#         date_fields = ["invoice_date", "due_date"]
+#         for field in date_fields:
+#             if field in data:
+#                 setattr(invoice, field, parse_date(data.get(field)))
+
+#         numeric_fields = ["amount_paid"]
+#         for field in numeric_fields:
+#             if field in data:
+#                 setattr(invoice, field, float(data.get(field)))
+
+#         if "customer_id" in data:
+#             customer = Customers.query.filter_by(id=data.get("customer_id"), deleted_at=None).first()
+#             if not customer:
+#                 return {"error": "Customer not found!"}, 404
+#             invoice.customer_id = customer.id
+
+#         if "sales_order_id" in data:
+#             invoice.sales_order_id = data.get("sales_order_id")
+
+#         if "quotation_id" in data:
+#             invoice.quotation_id = data.get("quotation_id")
+
+#         # Recalculate totals if items changed
+#         if "items" in data:
+#             # Remove existing items
+#             InvoiceItems.query.filter_by(invoice_id=invoice.id).delete()
+
+#             # Add new items
+#             for item in data.get("items", []):
+#                 product = None
+#                 product_id = item.get("product_id")
+#                 if product_id:
+#                     product = Products.query.filter_by(id=product_id, deleted_at=None).first()
+#                     if not product:
+#                         return {"error": f"Product with id {product_id} not found!"}, 404
+
+#                 item_description = clean_text(item.get("item_description"))
+#                 if not item_description and not product:
+#                     return {"error": "Each invoice item needs an item_description!"}, 422
+
+#                 try:
+#                     quantity = float(item.get("quantity", 1))
+#                     unit_price = float(item.get("unit_price", product.selling_price if product else 0))
+#                     discount = float(item.get("discount", 0))
+#                 except ValueError:
+#                     return {"error": "Quantity, unit price, and discount must be valid numbers!"}, 400
+
+#                 invoice_item = InvoiceItems(
+#                     invoice_id=invoice.id,
+#                     product_id=product.id if product else None,
+#                     item_description=item_description or product.product_name,
+#                     quantity=quantity,
+#                     unit_price=unit_price,
+#                     discount=discount,
+#                     vat_status=get_vat_status(product.category if product else None, item.get("vat_status") or (product.vat_status if product else None)),
+#                 )
+#                 db.session.add(invoice_item)
+
+#             db.session.flush()
+#             calculate_invoice_totals(invoice)
+
+#         db.session.commit()
+
+#         return invoice.to_dict(), 200
+
+#     @jwt_required()
+#     @admin_required
+#     def delete(self, invoice_id):
+#         invoice = Invoices.query.filter_by(id=invoice_id, deleted_at=None).first()
+
+#         if not invoice:
+#             return {"error": "Invoice not found!"}, 404
+
+#         invoice.deleted_at = datetime.utcnow()
+#         db.session.commit()
+
+#         return {"message": "Invoice deleted successfully!"}, 200
+
+
+# # ==================== RECEIPT RESOURCES ====================
+
+# class Receipt(Resource):
+#     @jwt_required()
+#     @finance_required  # Finance and admin can view invoices
+#     def get(self):
+#         receipts = Receipts.query.filter_by(deleted_at=None).all()
+#         return [receipt.to_dict() for receipt in receipts], 200
+
+#     @jwt_required()
+#     @finance_required
+#     def post(self):
+#         data = request.get_json()
+#         required_fields = {"customer_id", "payment_method", "amount_received"}
+
+#         if not isinstance(data, dict) or not all(field in data for field in required_fields):
+#             return {"error": "Missing required fields!"}, 400
+
+#         try:
+#             customer_id = int(data["customer_id"])
+#         except (TypeError, ValueError):
+#             return {"error": "Customer ID must be a valid integer!"}, 400
+
+
+#         customer = Customers.query.filter_by(id=customer_id, deleted_at=None).first()
+#         if not customer:
+
+#             return {"error": "Customer not found!"}, 404
+
+#         try:
+#             amount_received = Decimal(str(data["amount_received"]))
+#         except (InvalidOperation, TypeError, ValueError):
+#             return {"error": "Amount received must be a valid number!"}, 400
+
+#         if not amount_received.is_finite() or amount_received <= 0:
+#             return {"error": "Amount received must be greater than zero!"}, 400
+#         if amount_received != amount_received.quantize(Decimal("0.01")):
+#             return {"error": "Amount received cannot have more than two decimal places!"}, 400
+
+#         payment_method = clean_text(data.get("payment_method"))
+#         allowed_payment_methods = {"cash", "bank_transfer", "cheque", "mpesa"}
+#         if not payment_method or payment_method.lower() not in allowed_payment_methods:
+#             return {"error": "Payment method must be cash, bank_transfer, cheque, or mpesa!"}, 400
+#         payment_method = payment_method.lower()
+
+#         invoice = None
+#         invoice_id = data.get("invoice_id")
+#         if invoice_id is not None:
+#             try:
+#                 invoice_id = int(invoice_id)
+#             except (TypeError, ValueError):
+#                 return {"error": "Invoice ID must be a valid integer!"}, 400
+
+#             invoice = Invoices.query.filter_by(id=invoice_id, deleted_at=None).first()
+#             if not invoice:
+#                 return {"error": "Invoice not found!"}, 404
+#             if invoice.customer_id != customer.id:
+#                 return {"error": "Invoice does not belong to this customer!"}, 400
+
+#             invoice_balance = Decimal(str(invoice.invoice_total or 0)) - Decimal(str(invoice.amount_paid or 0))
+#             if invoice_balance <= 0:
+#                 return {"error": "Invoice has no outstanding balance!"}, 400
+#             if amount_received > invoice_balance:
+#                 return {"error": "Amount received exceeds the invoice balance!"}, 400
+#             # new_outstanding_balance = max(
+#             #     Decimal("0"), Decimal(str(customer.outstanding_balance or 0)) - amount_received
+#             # )
+
+#             customer_invoices = db.session.query(
+#                 Invoices.id,
+#                 Invoices.invoice_total,
+#                 Invoices.amount_paid,
+#             ).filter(
+#                 Invoices.customer_id == customer.id,
+#                 Invoices.deleted_at.is_(None),
+#             ).all()
+
+#             new_outstanding_balance = sum(
+#                 max(
+#                     Decimal("0"),
+#                     Decimal(str(total or 0))
+#                     - Decimal(str(paid or 0))
+#                     - (amount_received if customer_invoice_id == invoice.id else Decimal("0")),
+#                 )
+#                 for customer_invoice_id, total, paid in customer_invoices
+#             )
+#         else:
+#             customer_balance = Decimal(str(customer.outstanding_balance or 0))
+#             if amount_received > customer_balance:
+#                 return {"error": "Amount received exceeds the customer's outstanding balance!"}, 400
+#             new_outstanding_balance = customer_balance - amount_received
+
+#         if data.get("receipt_date"):
+#             try:
+#                 receipt_date = parse_date(data["receipt_date"])
+#             except (TypeError, ValueError):
+#                 return {"error": "Receipt date must use YYYY-MM-DD format!"}, 400
+#         else:
+#             receipt_date = datetime.utcnow().date()
+
+            
+
+#         # Generate receipt number if not provided
+#         if not data.get("receipt_number"):
+#             last_receipt = Receipts.query.order_by(Receipts.id.desc()).first()
+#             last_num = int(last_receipt.receipt_number.split("-")[1]) if last_receipt and last_receipt.receipt_number else 0
+#             data["receipt_number"] = f"REC-{last_num + 1:04d}"
+
+#         # try:
+#         #     amount_received = float(data.get("amount_received"))
+#         # except ValueError:
+#         #     return {"error": "Amount received must be a valid number!"}, 400
+
+#         receipt = Receipts(
+#             receipt_number=clean_text(data.get("receipt_number")),
+#             # receipt_date=parse_date(data.get("receipt_date")) or datetime.utcnow().date(),
+#             receipt_date=receipt_date,
+#             customer_id=customer.id,
+#             # invoice_id=data.get("invoice_id"),
+#             # payment_method=clean_text(data.get("payment_method")),
+#             invoice_id=invoice.id if invoice else None,
+#             payment_method=payment_method,
+#             transaction_reference=clean_text(data.get("transaction_reference")),
+#             # amount_received=amount_received,
+#             # outstanding_balance=float(data.get("outstanding_balance", 0)),
+#             amount_received=float(amount_received),
+#             outstanding_balance=float(new_outstanding_balance),
+#             received_by=clean_text(data.get("received_by")),
+#             notes=clean_text(data.get("notes")),
+#         )
+
+#         db.session.add(receipt)
+
+#         customer.outstanding_balance = float(new_outstanding_balance)
+#         if invoice:
+#             invoice.amount_paid = float(Decimal(str(invoice.amount_paid or 0)) + amount_received)
+#             invoice.balance_due = float(invoice_balance - amount_received)
+#             if invoice.balance_due <= 0:
+#                 invoice.status = "paid"
+
+#         db.session.commit()
+
+#         # Update invoice balance if invoice_id is provided
+#         # if data.get("invoice_id"):
+#         #     invoice = Invoices.query.get(data.get("invoice_id"))
+#         #     if invoice:
+#         #         # ✅ Convert Decimal to float before math
+#         #         invoice.amount_paid = float(invoice.amount_paid or 0) + amount_received
+#         #         invoice.balance_due = float(invoice.invoice_total or 0) - float(invoice.amount_paid or 0)
+#         #         if invoice.balance_due <= 0:
+#         #             invoice.status = "paid"
+#         #         db.session.commit()
+
+#         # Update customer outstanding balance
+#         # if customer:
+#         #     customer.outstanding_balance = float(customer.outstanding_balance or 0) - amount_received
+#         #     db.session.commit()
+
+#         return receipt.to_dict(), 201
+
+
+# class ReceiptResource(Resource):
+#     @jwt_required()
+#     @finance_required  # Finance and admin can view invoices
+#     def get(self, receipt_id):
+#         receipt = Receipts.query.filter_by(id=receipt_id, deleted_at=None).first()
+
+#         if not receipt:
+#             return {"error": "Receipt not found!"}, 404
+
+#         return receipt.to_dict(), 200
+
+#     @jwt_required()
+#     @finance_required  # Finance and admin can view invoices
+#     def patch(self, receipt_id):
+#         receipt = Receipts.query.filter_by(id=receipt_id, deleted_at=None).first()
+
+#         if not receipt:
+#             return {"error": "Receipt not found!"}, 404
+
+#         data = request.get_json()
+
+#         text_fields = ["receipt_number", "payment_method", "transaction_reference", "received_by", "notes"]
+#         for field in text_fields:
+#             if field in data:
+#                 setattr(receipt, field, clean_text(data.get(field)))
+
+#         date_fields = ["receipt_date"]
+#         for field in date_fields:
+#             if field in data:
+#                 setattr(receipt, field, parse_date(data.get(field)))
+
+#         if "amount_received" in data:
+#             receipt.amount_received = float(data.get("amount_received"))
+
+#         if "outstanding_balance" in data:
+#             receipt.outstanding_balance = float(data.get("outstanding_balance"))
+
+#         if "customer_id" in data:
+#             customer = Customers.query.filter_by(id=data.get("customer_id"), deleted_at=None).first()
+#             if not customer:
+#                 return {"error": "Customer not found!"}, 404
+#             receipt.customer_id = customer.id
+
+#         if "invoice_id" in data:
+#             receipt.invoice_id = data.get("invoice_id")
+
+#         db.session.commit()
+
+#         return receipt.to_dict(), 200
+
+#     @jwt_required()
+#     @admin_required
+#     def delete(self, receipt_id):
+#         receipt = Receipts.query.filter_by(id=receipt_id, deleted_at=None).first()
+
+#         if not receipt:
+#             return {"error": "Receipt not found!"}, 404
+
+#         receipt.deleted_at = datetime.utcnow()
+#         db.session.commit()
+
+#         return {"message": "Receipt deleted successfully!"}, 200
+
+
+# # ==================== SUPPLIER RESOURCES ====================
+
+# class Supplier(Resource):
+#     @jwt_required()
+#     @store_required  # Store managers and admin can view suppliers
+#     def get(self):
+#         suppliers = Suppliers.query.filter_by(deleted_at=None).all()
+#         return [supplier.to_dict() for supplier in suppliers], 200
+
+#     @jwt_required()
+#     @store_required  # Store managers and admin can view suppliers
+#     def post(self):
+#         data = request.get_json()
+#         required_fields = {"supplier_name", "phone"}
+
+#         if not data or not all(field in data for field in required_fields):
+#             return {"error": "Missing required fields!"}, 400
+
+#         supplier = Suppliers(
+#             supplier_name=clean_text(data.get("supplier_name")),
+#             contact_person=clean_text(data.get("contact_person")),
+#             phone=clean_text(data.get("phone")),
+#             email=clean_text(data.get("email")),
+#             kra_pin=clean_text(data.get("kra_pin")),
+#             physical_address=clean_text(data.get("physical_address")),
+#             county=clean_text(data.get("county")),
+#             products_supplied=clean_text(data.get("products_supplied")),
+#             outstanding_orders=int(data.get("outstanding_orders", 0)),
+#             is_active=data.get("is_active", True),
+#         )
+
+#         db.session.add(supplier)
+#         db.session.commit()
+
+#         return supplier.to_dict(), 201
+
+
+# class SupplierResource(Resource):
+#     @jwt_required()
+#     @store_required  # Store managers and admin can view suppliers
+#     def get(self, supplier_id):
+#         supplier = Suppliers.query.filter_by(id=supplier_id, deleted_at=None).first()
+
+#         if not supplier:
+#             return {"error": "Supplier not found!"}, 404
+
+#         return supplier.to_dict(), 200
+
+#     @jwt_required()
+#     @store_required  # Store managers and admin can view suppliers
+#     def patch(self, supplier_id):
+#         supplier = Suppliers.query.filter_by(id=supplier_id, deleted_at=None).first()
+
+#         if not supplier:
+#             return {"error": "Supplier not found!"}, 404
+
+#         data = request.get_json()
+
+#         text_fields = ["supplier_name", "contact_person", "phone", "email", "kra_pin", "physical_address", "county", "products_supplied"]
+#         for field in text_fields:
+#             if field in data:
+#                 setattr(supplier, field, clean_text(data.get(field)))
+
+#         if "outstanding_orders" in data:
+#             supplier.outstanding_orders = int(data.get("outstanding_orders"))
+
+#         if "is_active" in data:
+#             supplier.is_active = bool(data.get("is_active"))
+
+#         db.session.commit()
+
+#         return supplier.to_dict(), 200
+
+#     @jwt_required()
+#     @admin_required
+#     def delete(self, supplier_id):
+#         supplier = Suppliers.query.filter_by(id=supplier_id, deleted_at=None).first()
+
+#         if not supplier:
+#             return {"error": "Supplier not found!"}, 404
+
+#         supplier.deleted_at = datetime.utcnow()
+#         db.session.commit()
+
+#         return {"message": "Supplier deleted successfully!"}, 200
+
+
+# # ==================== PURCHASE ORDER RESOURCES ====================
+
+# class PurchaseOrder(Resource):
+#     @jwt_required()
+#     @store_required  # Store managers and admin can view purchase orders
+#     def get(self):
+#         purchase_orders = PurchaseOrders.query.filter_by(deleted_at=None).all()
+#         return [po.to_dict() for po in purchase_orders], 200
+
+#     @jwt_required()
+#     @store_required  # Store managers and admin can view purchase orders                                                                                
+#     def post(self):
+#         data = request.get_json()
+#         required_fields = {"supplier_id", "items"}
+
+#         if not data or not all(field in data for field in required_fields):
+#             return {"error": "Missing required fields!"}, 400
+
+#         supplier = Suppliers.query.filter_by(id=data.get("supplier_id"), deleted_at=None).first()
+#         if not supplier:
+#             return {"error": "Supplier not found!"}, 404
+
+#         if not data.get("items"):
+#             return {"error": "A purchase order must have at least one item!"}, 400
+
+#         # Generate PO number if not provided
+#         if not data.get("po_number"):
+#             last_po = PurchaseOrders.query.order_by(PurchaseOrders.id.desc()).first()
+#             last_num = int(last_po.po_number.split("-")[1]) if last_po and last_po.po_number else 0
+#             data["po_number"] = f"PO-{last_num + 1:04d}"
+
+#         po = PurchaseOrders(
+#             po_number=clean_text(data.get("po_number")),
+#             po_date=parse_date(data.get("po_date")) or datetime.utcnow().date(),
+#             supplier_id=supplier.id,
+#             required_date=parse_date(data.get("required_date")),
+#             expected_delivery=parse_date(data.get("expected_delivery")),
+#             status=clean_text(data.get("status")) or "open",
+#             total_amount=float(data.get("total_amount", 0)),
+#             notes=clean_text(data.get("notes")),
+#         )
+
+#         db.session.add(po)
+#         db.session.flush()
+
+#         total = 0
+#         for item in data.get("items", []):
+#             product = None
+#             product_id = item.get("product_id")
+#             if product_id:
+#                 product = Products.query.filter_by(id=product_id, deleted_at=None).first()
+#                 if not product:
+#                     return {"error": f"Product with id {product_id} not found!"}, 404
+
+#             item_description = clean_text(item.get("item_description"))
+#             if not item_description and not product:
+#                 return {"error": "Each purchase order item needs an item_description!"}, 422
+
+#             try:
+#                 quantity_ordered = float(item.get("quantity_ordered", 1))
+#                 unit_price = float(item.get("unit_price", 0))
+#             except ValueError:
+#                 return {"error": "Quantity and unit price must be valid numbers!"}, 400
+
+#             line_total = quantity_ordered * unit_price
+#             total += line_total
+
+#             po_item = PurchaseOrderItems(
+#                 purchase_order_id=po.id,
+#                 product_id=product.id if product else None,
+#                 item_description=item_description or product.product_name,
+#                 quantity_ordered=quantity_ordered,
+#                 quantity_received=float(item.get("quantity_received", 0)),
+#                 unit_price=unit_price,
+#                 line_total=line_total,
+#             )
+#             db.session.add(po_item)
+
+#         po.total_amount = total
+#         db.session.commit()
+
+#         return po.to_dict(), 201
+
+
+# class PurchaseOrderResource(Resource):
+#     @jwt_required()
+#     @store_required  # Store managers and admin can view purchase orders
+#     def get(self, po_id):
+#         po = PurchaseOrders.query.filter_by(id=po_id, deleted_at=None).first()
+
+#         if not po:
+#             return {"error": "Purchase order not found!"}, 404
+
+#         return po.to_dict(), 200
+
+#     @jwt_required()
+#     @store_required  # Store managers and admin can view purchase orders
+#     def patch(self, po_id):
+#         po = PurchaseOrders.query.filter_by(id=po_id, deleted_at=None).first()
+
+#         if not po:
+#             return {"error": "Purchase order not found!"}, 404
+
+#         data = request.get_json()
+
+#         text_fields = ["po_number", "status", "notes"]
+#         for field in text_fields:
+#             if field in data:
+#                 setattr(po, field, clean_text(data.get(field)))
+
+#         date_fields = ["po_date", "required_date", "expected_delivery"]
+#         for field in date_fields:
+#             if field in data:
+#                 setattr(po, field, parse_date(data.get(field)))
+
+#         if "total_amount" in data:
+#             po.total_amount = float(data.get("total_amount"))
+
+#         if "supplier_id" in data:
+#             supplier = Suppliers.query.filter_by(id=data.get("supplier_id"), deleted_at=None).first()
+#             if not supplier:
+#                 return {"error": "Supplier not found!"}, 404
+#             po.supplier_id = supplier.id
+
+#         if "items" in data:
+#             PurchaseOrderItems.query.filter_by(purchase_order_id=po.id).delete()
+#             total = 0
+
+#             for item in data.get("items", []):
+#                 product = None
+#                 product_id = item.get("product_id")
+#                 if product_id:
+#                     product = Products.query.filter_by(id=product_id, deleted_at=None).first()
+#                     if not product:
+#                         return {"error": f"Product with id {product_id} not found!"}, 404
+
+#                 item_description = clean_text(item.get("item_description"))
+#                 if not item_description and not product:
+#                     return {"error": "Each purchase order item needs an item_description!"}, 422
+
+#                 try:
+#                     quantity_ordered = float(item.get("quantity_ordered", 1))
+#                     unit_price = float(item.get("unit_price", 0))
+#                 except ValueError:
+#                     return {"error": "Quantity and unit price must be valid numbers!"}, 400
+
+#                 line_total = quantity_ordered * unit_price
+#                 total += line_total
+
+#                 po_item = PurchaseOrderItems(
+#                     purchase_order_id=po.id,
+#                     product_id=product.id if product else None,
+#                     item_description=item_description or product.product_name,
+#                     quantity_ordered=quantity_ordered,
+#                     quantity_received=float(item.get("quantity_received", 0)),
+#                     unit_price=unit_price,
+#                     line_total=line_total,
+#                 )
+#                 db.session.add(po_item)
+
+#             po.total_amount = total
+
+#         db.session.commit()
+
+#         return po.to_dict(), 200
+
+#     @jwt_required()
+#     @admin_required
+#     def delete(self, po_id):
+#         po = PurchaseOrders.query.filter_by(id=po_id, deleted_at=None).first()
+
+#         if not po:
+#             return {"error": "Purchase order not found!"}, 404
+
+#         po.deleted_at = datetime.utcnow()
+#         db.session.commit()
+
+#         return {"message": "Purchase order deleted successfully!"}, 200
+
+
+# # ==================== STOCK TRANSACTION RESOURCES ====================
+
+# class StockTransaction(Resource):
+#     @jwt_required()
+#     @store_required  # Store managers and admin can view stock transactions
+#     def get(self):
+#         transactions = StockTransactions.query.filter_by(deleted_at=None).all()
+#         return [transaction.to_dict() for transaction in transactions], 200
+
+#     @jwt_required()
+#     @store_required  # Store managers and admin can view stock transactions
+#     def post(self):
+#         data = request.get_json()
+#         required_fields = {"transaction_type", "product_id", "quantity_change"}
+
+#         if not data or not all(field in data for field in required_fields):
+#             return {"error": "Missing required fields!"}, 400
+
+#         product = Products.query.filter_by(id=data.get("product_id"), deleted_at=None).first()
+#         if not product:
+#             return {"error": "Product not found!"}, 404
+
+#         try:
+#             quantity_change = float(data.get("quantity_change"))
+#         except ValueError:
+#             return {"error": "Quantity change must be a valid number!"}, 400
+
+#         # Get current stock before transaction
+#         quantity_before = product.current_stock
+
+#         # Calculate quantity after
+#         transaction_type = clean_text(data.get("transaction_type"))
+#         if transaction_type in ["grn", "adjustment_positive", "return"]:
+#             quantity_after = quantity_before + quantity_change
+#         elif transaction_type in ["issue", "adjustment_negative", "transfer_out"]:
+#             quantity_after = quantity_before - abs(quantity_change)
+#         else:
+#             return {"error": f"Invalid transaction type: {transaction_type}"}, 400
+
+#         if quantity_after < 0:
+#             return {"error": "Insufficient stock! Transaction would result in negative stock."}, 400
+
+#         transaction = StockTransactions(
+#             transaction_type=transaction_type,
+#             product_id=product.id,
+#             reference_number=clean_text(data.get("reference_number")),
+#             quantity_change=quantity_change,
+#             quantity_before=quantity_before,
+#             quantity_after=quantity_after,
+#             unit_cost=float(data.get("unit_cost", product.buying_price or 0)),
+#             notes=clean_text(data.get("notes")),
+#             performed_by_id=int(get_jwt_identity()),  # Automatically set to current user
+#         )
+
+#         db.session.add(transaction)
+
+#         # Update product stock
+#         product.current_stock = quantity_after
+
+#         db.session.commit()
+
+#         return transaction.to_dict(), 201
+
+
+# class StockTransactionResource(Resource):
+#     @jwt_required()
+#     @store_required  # Store managers and admin can view stock transactions
+#     def get(self, transaction_id):
+#         transaction = StockTransactions.query.filter_by(id=transaction_id, deleted_at=None).first()
+
+#         if not transaction:
+#             return {"error": "Stock transaction not found!"}, 404
+
+#         return transaction.to_dict(), 200
+
+#     @jwt_required()
+#     @admin_required
+#     def delete(self, transaction_id):
+#         transaction = StockTransactions.query.filter_by(id=transaction_id, deleted_at=None).first()
+
+#         if not transaction:
+#             return {"error": "Stock transaction not found!"}, 404
+
+#         transaction.deleted_at = datetime.utcnow()
+#         db.session.commit()
+
+#         return {"message": "Stock transaction deleted successfully!"}, 200
+
+
+# # ==================== PROJECT RESOURCES ====================
+
+# class Project(Resource):
+#     @jwt_required()
+#     @engineer_required  # Engineers and admin can view projects
+#     def get(self):
+#         projects = Projects.query.filter_by(deleted_at=None).all()
+#         return [project.to_dict() for project in projects], 200
+
+#     @jwt_required()
+#     @engineer_required  # Engineers and admin can view projects
+#     def post(self):
+#         data = request.get_json()
+#         required_fields = {"project_name", "customer_id"}
+
+#         if not data or not all(field in data for field in required_fields):
+#             return {"error": "Missing required fields!"}, 400
+
+#         customer = Customers.query.filter_by(id=data.get("customer_id"), deleted_at=None).first()
+#         if not customer:
+#             return {"error": "Customer not found!"}, 404
+
+#         project = Projects(
+#             project_name=clean_text(data.get("project_name")),
+#             customer_id=customer.id,
+#             location=clean_text(data.get("location")),
+#             contract_value=float(data.get("contract_value", 0)),
+#             start_date=parse_date(data.get("start_date")),
+#             end_date=parse_date(data.get("end_date")),
+#             assigned_engineer=clean_text(data.get("assigned_engineer")),
+#             assigned_technicians=clean_text(data.get("assigned_technicians")),
+#             materials_consumed=float(data.get("materials_consumed", 0)),
+#             invoices_raised=float(data.get("invoices_raised", 0)),
+#             payments_received=float(data.get("payments_received", 0)),
+#             profitability=float(data.get("profitability", 0)),
+#             status=clean_text(data.get("status")) or "planning",
+#             notes=clean_text(data.get("notes")),
+#         )
+
+#         db.session.add(project)
+#         db.session.commit()
+
+#         return project.to_dict(), 201
+
+
+# class ProjectResource(Resource):
+#     @jwt_required()
+#     @engineer_required  # Engineers and admin can view projects
+#     def get(self, project_id):
+#         project = Projects.query.filter_by(id=project_id, deleted_at=None).first()
+
+#         if not project:
+#             return {"error": "Project not found!"}, 404
+
+#         return project.to_dict(), 200
+
+#     @jwt_required()
+#     @engineer_required  # Engineers and admin can view projects
+#     def patch(self, project_id):
+#         project = Projects.query.filter_by(id=project_id, deleted_at=None).first()
+
+#         if not project:
+#             return {"error": "Project not found!"}, 404
+
+#         data = request.get_json()
+
+#         text_fields = ["project_name", "location", "assigned_engineer", "assigned_technicians", "status", "notes"]
+#         for field in text_fields:
+#             if field in data:
+#                 setattr(project, field, clean_text(data.get(field)))
+
+#         date_fields = ["start_date", "end_date"]
+#         for field in date_fields:
+#             if field in data:
+#                 setattr(project, field, parse_date(data.get(field)))
+
+#         numeric_fields = ["contract_value", "materials_consumed", "invoices_raised", "payments_received", "profitability"]
+#         for field in numeric_fields:
+#             if field in data:
+#                 setattr(project, field, float(data.get(field)))
+
+#         if "customer_id" in data:
+#             customer = Customers.query.filter_by(id=data.get("customer_id"), deleted_at=None).first()
+#             if not customer:
+#                 return {"error": "Customer not found!"}, 404
+#             project.customer_id = customer.id
+
+#         db.session.commit()
+
+#         return project.to_dict(), 200
+
+#     @jwt_required()
+#     @admin_required
+#     def delete(self, project_id):
+#         project = Projects.query.filter_by(id=project_id, deleted_at=None).first()
+
+#         if not project:
+#             return {"error": "Project not found!"}, 404
+
+#         project.deleted_at = datetime.utcnow()
+#         db.session.commit()
+
+#         return {"message": "Project deleted successfully!"}, 200
+
+
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from flask import request
@@ -803,10 +2271,8 @@ class Receipt(Resource):
         except (TypeError, ValueError):
             return {"error": "Customer ID must be a valid integer!"}, 400
 
-
         customer = Customers.query.filter_by(id=customer_id, deleted_at=None).first()
         if not customer:
-
             return {"error": "Customer not found!"}, 404
 
         try:
@@ -844,9 +2310,33 @@ class Receipt(Resource):
                 return {"error": "Invoice has no outstanding balance!"}, 400
             if amount_received > invoice_balance:
                 return {"error": "Amount received exceeds the invoice balance!"}, 400
-            new_outstanding_balance = max(
-                Decimal("0"), Decimal(str(customer.outstanding_balance or 0)) - amount_received
+            customer_invoices = db.session.query(
+                Invoices.id,
+                Invoices.invoice_total,
+                Invoices.amount_paid,
+            ).filter(
+                Invoices.customer_id == customer.id,
+                Invoices.deleted_at.is_(None),
+            ).all()
+            invoice_outstanding = sum(
+                max(
+                    Decimal("0"),
+                    Decimal(str(total or 0))
+                    - Decimal(str(paid or 0))
+                    - (amount_received if customer_invoice_id == invoice.id else Decimal("0")),
+                )
+                for customer_invoice_id, total, paid in customer_invoices
             )
+            unapplied_receipts = Receipts.query.filter_by(
+                customer_id=customer.id,
+                invoice_id=None,
+                deleted_at=None,
+            ).all()
+            unapplied_payments = sum(
+                (Decimal(str(receipt.amount_received or 0)) for receipt in unapplied_receipts),
+                Decimal("0"),
+            )
+            new_outstanding_balance = max(Decimal("0"), invoice_outstanding - unapplied_payments)
         else:
             customer_balance = Decimal(str(customer.outstanding_balance or 0))
             if amount_received > customer_balance:
@@ -861,31 +2351,19 @@ class Receipt(Resource):
         else:
             receipt_date = datetime.utcnow().date()
 
-            
-
         # Generate receipt number if not provided
         if not data.get("receipt_number"):
             last_receipt = Receipts.query.order_by(Receipts.id.desc()).first()
             last_num = int(last_receipt.receipt_number.split("-")[1]) if last_receipt and last_receipt.receipt_number else 0
             data["receipt_number"] = f"REC-{last_num + 1:04d}"
 
-        # try:
-        #     amount_received = float(data.get("amount_received"))
-        # except ValueError:
-        #     return {"error": "Amount received must be a valid number!"}, 400
-
         receipt = Receipts(
             receipt_number=clean_text(data.get("receipt_number")),
-            # receipt_date=parse_date(data.get("receipt_date")) or datetime.utcnow().date(),
             receipt_date=receipt_date,
             customer_id=customer.id,
-            # invoice_id=data.get("invoice_id"),
-            # payment_method=clean_text(data.get("payment_method")),
             invoice_id=invoice.id if invoice else None,
             payment_method=payment_method,
             transaction_reference=clean_text(data.get("transaction_reference")),
-            # amount_received=amount_received,
-            # outstanding_balance=float(data.get("outstanding_balance", 0)),
             amount_received=float(amount_received),
             outstanding_balance=float(new_outstanding_balance),
             received_by=clean_text(data.get("received_by")),
@@ -893,31 +2371,13 @@ class Receipt(Resource):
         )
 
         db.session.add(receipt)
-
         customer.outstanding_balance = float(new_outstanding_balance)
         if invoice:
             invoice.amount_paid = float(Decimal(str(invoice.amount_paid or 0)) + amount_received)
             invoice.balance_due = float(invoice_balance - amount_received)
-            if invoice.balance_due <= 0:
-                invoice.status = "paid"
+            invoice.status = "paid" if invoice.balance_due <= 0 else "partial_paid"
 
         db.session.commit()
-
-        # Update invoice balance if invoice_id is provided
-        # if data.get("invoice_id"):
-        #     invoice = Invoices.query.get(data.get("invoice_id"))
-        #     if invoice:
-        #         # ✅ Convert Decimal to float before math
-        #         invoice.amount_paid = float(invoice.amount_paid or 0) + amount_received
-        #         invoice.balance_due = float(invoice.invoice_total or 0) - float(invoice.amount_paid or 0)
-        #         if invoice.balance_due <= 0:
-        #             invoice.status = "paid"
-        #         db.session.commit()
-
-        # Update customer outstanding balance
-        # if customer:
-        #     customer.outstanding_balance = float(customer.outstanding_balance or 0) - amount_received
-        #     db.session.commit()
 
         return receipt.to_dict(), 201
 
@@ -942,31 +2402,135 @@ class ReceiptResource(Resource):
             return {"error": "Receipt not found!"}, 404
 
         data = request.get_json()
+        if not isinstance(data, dict):
+            return {"error": "Request body must be a JSON object!"}, 400
+
+        old_customer = Customers.query.filter_by(id=receipt.customer_id).first()
+        old_invoice = Invoices.query.filter_by(id=receipt.invoice_id).first() if receipt.invoice_id else None
+        if not old_customer:
+            return {"error": "Receipt customer not found!"}, 404
+
+        new_customer = old_customer
+        if "customer_id" in data:
+            try:
+                customer_id = int(data["customer_id"])
+            except (TypeError, ValueError):
+                return {"error": "Customer ID must be a valid integer!"}, 400
+            new_customer = Customers.query.filter_by(id=customer_id, deleted_at=None).first()
+            if not new_customer:
+                return {"error": "Customer not found!"}, 404
+
+        new_invoice = old_invoice
+        if "invoice_id" in data:
+            invoice_id = data["invoice_id"]
+            if invoice_id is None:
+                new_invoice = None
+            else:
+                try:
+                    invoice_id = int(invoice_id)
+                except (TypeError, ValueError):
+                    return {"error": "Invoice ID must be a valid integer!"}, 400
+                new_invoice = Invoices.query.filter_by(id=invoice_id, deleted_at=None).first()
+                if not new_invoice:
+                    return {"error": "Invoice not found!"}, 404
+
+        if new_invoice and new_invoice.customer_id != new_customer.id:
+            return {"error": "Invoice does not belong to this customer!"}, 400
+
+        old_amount = Decimal(str(receipt.amount_received or 0))
+        if old_invoice and (not new_invoice or old_invoice.id != new_invoice.id):
+            if Decimal(str(old_invoice.amount_paid or 0)) < old_amount:
+                return {"error": "Invoice payment totals are inconsistent with this receipt!"}, 409
+
+        new_amount = old_amount
+        if "amount_received" in data:
+            try:
+                new_amount = Decimal(str(data["amount_received"]))
+            except (InvalidOperation, TypeError, ValueError):
+                return {"error": "Amount received must be a valid number!"}, 400
+            if not new_amount.is_finite() or new_amount <= 0:
+                return {"error": "Amount received must be greater than zero!"}, 400
+            if new_amount != new_amount.quantize(Decimal("0.01")):
+                return {"error": "Amount received cannot have more than two decimal places!"}, 400
+
+        new_payment_method = receipt.payment_method
+        if "payment_method" in data:
+            new_payment_method = clean_text(data.get("payment_method"))
+            allowed_payment_methods = {"cash", "bank_transfer", "cheque", "mpesa"}
+            if not new_payment_method or new_payment_method.lower() not in allowed_payment_methods:
+                return {"error": "Payment method must be cash, bank_transfer, cheque, or mpesa!"}, 400
+            new_payment_method = new_payment_method.lower()
+
+        new_invoice_balance = None
+        if new_invoice:
+            if old_invoice and old_invoice.id == new_invoice.id and Decimal(str(old_invoice.amount_paid or 0)) < old_amount:
+                return {"error": "Invoice payment totals are inconsistent with this receipt!"}, 409
+            new_invoice_balance = (
+                Decimal(str(new_invoice.invoice_total or 0))
+                - Decimal(str(new_invoice.amount_paid or 0))
+                + (old_amount if old_invoice and old_invoice.id == new_invoice.id else Decimal("0"))
+            )
+            if new_invoice_balance <= 0:
+                return {"error": "Invoice has no outstanding balance!"}, 400
+            if new_amount > new_invoice_balance:
+                return {"error": "Amount received exceeds the invoice balance!"}, 400
+
+        old_customer_balance = Decimal(str(old_customer.outstanding_balance or 0))
+        new_customer_balance = Decimal(str(new_customer.outstanding_balance or 0))
+        if new_customer.id == old_customer.id:
+            adjusted_customer_balance = old_customer_balance + old_amount - new_amount
+            if adjusted_customer_balance < 0:
+                return {"error": "Amount received exceeds the customer's outstanding balance!"}, 400
+            new_customer_balance = adjusted_customer_balance
+        else:
+            old_customer_balance += old_amount
+            new_customer_balance -= new_amount
+            if new_customer_balance < 0:
+                return {"error": "Amount received exceeds the customer's outstanding balance!"}, 400
+
+        if "receipt_date" in data:
+            try:
+                receipt_date = parse_date(data["receipt_date"])
+            except (TypeError, ValueError):
+                return {"error": "Receipt date must use YYYY-MM-DD format!"}, 400
+            if receipt_date is None:
+                return {"error": "Receipt date cannot be empty!"}, 400
+            receipt.receipt_date = receipt_date
 
         text_fields = ["receipt_number", "payment_method", "transaction_reference", "received_by", "notes"]
         for field in text_fields:
-            if field in data:
+            if field in data and field != "payment_method":
                 setattr(receipt, field, clean_text(data.get(field)))
 
-        date_fields = ["receipt_date"]
-        for field in date_fields:
-            if field in data:
-                setattr(receipt, field, parse_date(data.get(field)))
+        receipt.customer_id = new_customer.id
+        receipt.invoice_id = new_invoice.id if new_invoice else None
+        receipt.payment_method = new_payment_method
+        receipt.amount_received = float(new_amount)
+        receipt.outstanding_balance = float(new_customer_balance)
 
-        if "amount_received" in data:
-            receipt.amount_received = float(data.get("amount_received"))
+        if old_invoice and (not new_invoice or old_invoice.id != new_invoice.id):
+            old_invoice.amount_paid = float(Decimal(str(old_invoice.amount_paid or 0)) - old_amount)
+            old_invoice.balance_due = float(
+                Decimal(str(old_invoice.invoice_total or 0)) - Decimal(str(old_invoice.amount_paid))
+            )
+            old_invoice.status = "partial_paid" if old_invoice.amount_paid > 0 else "pending"
 
-        if "outstanding_balance" in data:
-            receipt.outstanding_balance = float(data.get("outstanding_balance"))
+        if new_invoice:
+            if old_invoice and old_invoice.id == new_invoice.id:
+                new_invoice.amount_paid = float(
+                    Decimal(str(new_invoice.amount_paid or 0)) - old_amount + new_amount
+                )
+            else:
+                new_invoice.amount_paid = float(
+                    Decimal(str(new_invoice.amount_paid or 0)) + new_amount
+                )
+            new_invoice.balance_due = float(
+                Decimal(str(new_invoice.invoice_total or 0)) - Decimal(str(new_invoice.amount_paid))
+            )
+            new_invoice.status = "paid" if new_invoice.balance_due <= 0 else "partial_paid"
 
-        if "customer_id" in data:
-            customer = Customers.query.filter_by(id=data.get("customer_id"), deleted_at=None).first()
-            if not customer:
-                return {"error": "Customer not found!"}, 404
-            receipt.customer_id = customer.id
-
-        if "invoice_id" in data:
-            receipt.invoice_id = data.get("invoice_id")
+        old_customer.outstanding_balance = float(old_customer_balance)
+        new_customer.outstanding_balance = float(new_customer_balance)
 
         db.session.commit()
 
@@ -979,6 +2543,26 @@ class ReceiptResource(Resource):
 
         if not receipt:
             return {"error": "Receipt not found!"}, 404
+
+        customer = Customers.query.filter_by(id=receipt.customer_id).first()
+        if not customer:
+            return {"error": "Receipt customer not found!"}, 404
+
+        amount_received = Decimal(str(receipt.amount_received or 0))
+        customer.outstanding_balance = float(
+            Decimal(str(customer.outstanding_balance or 0)) + amount_received
+        )
+
+        if receipt.invoice_id:
+            invoice = Invoices.query.filter_by(id=receipt.invoice_id).first()
+            if invoice:
+                if Decimal(str(invoice.amount_paid or 0)) < amount_received:
+                    return {"error": "Invoice payment totals are inconsistent with this receipt!"}, 409
+                invoice.amount_paid = float(Decimal(str(invoice.amount_paid or 0)) - amount_received)
+                invoice.balance_due = float(
+                    Decimal(str(invoice.invoice_total or 0)) - Decimal(str(invoice.amount_paid))
+                )
+                invoice.status = "partial_paid" if invoice.amount_paid > 0 else "pending"
 
         receipt.deleted_at = datetime.utcnow()
         db.session.commit()
