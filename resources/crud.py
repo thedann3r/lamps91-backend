@@ -2055,7 +2055,8 @@ def calculate_invoice_totals(invoice):
     invoice.sub_total = sub_total
     invoice.vat_exempt_total = vat_exempt_total
     invoice.vatable_total = vatable_total
-    invoice.vat_amount = vatable_total * VAT_RATE
+    vat_rate = get_current_vat_rate()
+    invoice.vat_amount = vatable_total * vat_rate
     invoice.invoice_total = sub_total + invoice.vat_amount
     invoice.balance_due = invoice.invoice_total - float(invoice.amount_paid or 0)
 
